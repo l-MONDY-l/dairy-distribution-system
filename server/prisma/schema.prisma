@@ -1,13 +1,551 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum ShopStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  DISABLED
+}
+
+enum PaymentType {
+  CASH
+  BANK_TRANSFER
+  ONLINE
+}
+
+enum PaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+  FAILED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum DispatchStatus {
+  PENDING
+  ASSIGNED
+  DISPATCHED
+  DELIVERED
+  FAILED
+}
+
+enum OrderStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  ASSIGNED
+  DISPATCHED
+  DELIVERED
+  CANCELLED
+  REJECTED
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED
+}
+
+enum ReturnStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum DeliveryStatus {
+  PENDING
+  IN_TRANSIT
+  DELIVERED
+  FAILED
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  SYSTEM
+}
+
+enum NotificationSendStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum TripStatus {
+  PENDING
+  STARTED
+  COMPLETED
+  CANCELLED
+}
+
+model Role {
+  id              String           @id @default(cuid())
+  name            String           @unique
+  code            String           @unique
+  description     String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  users           User[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id              String           @id @default(cuid())
+  name            String
+  code            String           @unique
+  module          String
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String     @id @default(cuid())
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model User {
+  id                String         @id @default(cuid())
+  fullName          String
+  email             String         @unique
+  phone             String?        @unique
+  passwordHash      String
+  status            UserStatus     @default(ACTIVE)
+  roleId            String
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  role              Role           @relation(fields: [roleId], references: [id])
+  agentProfile      AgentProfile?
+  driverProfile     DriverProfile?
+  shopsPlaced       Order[]        @relation("OrderPlacedBy")
+  discountsApproved Discount[]     @relation("DiscountApprovedBy")
+  activityLogs      ActivityLog[]
+
+  @@map("users")
+}
+
+model Region {
+  id        String          @id @default(cuid())
+  name      String          @unique
+  code      String          @unique
+  status    Boolean         @default(true)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  cities    City[]
+  shops     Shop[]
+  agents    AgentProfile[]
+  drivers   DriverProfile[]
+  orders    Order[]
+
+  @@map("regions")
+}
+
+model City {
+  id        String   @id @default(cuid())
+  regionId  String
+  name      String
+  status    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  region    Region   @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  shops     Shop[]
+  orders    Order[]
+
+  @@unique([regionId, name])
+  @@map("cities")
+}
+
+model Shop {
+  id               String         @id @default(cuid())
+  code             String         @unique
+  shopName         String
+  ownerName        String?
+  phone            String?
+  email            String?        @unique
+  address          String?
+  website          String?
+  logoUrl          String?
+  regionId         String
+  cityId           String
+  assignedAgentId  String?
+  assignedDriverId String?
+  status           ShopStatus     @default(PENDING)
+  notifySms        Boolean        @default(true)
+  notifyEmail      Boolean        @default(true)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  region           Region         @relation(fields: [regionId], references: [id])
+  city             City           @relation(fields: [cityId], references: [id])
+  assignedAgent    AgentProfile?  @relation(fields: [assignedAgentId], references: [id])
+  assignedDriver   DriverProfile? @relation(fields: [assignedDriverId], references: [id])
+  orders           Order[]
+  returns          Return[]
+  invoices         Invoice[]
+  payments         Payment[]
+  discounts        Discount[]
+  notifications    Notification[]
+
+  @@map("shops")
+}
+
+model AgentProfile {
+  id                String            @id @default(cuid())
+  userId            String            @unique
+  regionId          String
+  monthlyTarget     Decimal           @default(0) @db.Decimal(12, 2)
+  notificationSms   Boolean           @default(true)
+  notificationEmail Boolean           @default(true)
+  status            Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  region            Region            @relation(fields: [regionId], references: [id])
+  shops             Shop[]
+  stockAllocations  StockAllocation[]
+  orders            Order[]
+  returns           Return[]
+  discounts         Discount[]
+
+  @@map("agent_profiles")
+}
+
+model DriverProfile {
+  id                String           @id @default(cuid())
+  userId            String           @unique
+  regionId          String
+  vehicleNumber     String?
+  licenseNumber     String?
+  fuelQuotaDaily    Decimal          @default(0) @db.Decimal(10, 2)
+  notificationSms   Boolean          @default(true)
+  notificationEmail Boolean          @default(true)
+  status            Boolean          @default(true)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  region            Region           @relation(fields: [regionId], references: [id])
+  shops             Shop[]
+  orders            Order[]
+  returns           Return[]
+  dispatches        Dispatch[]
+  fuelAllocations   FuelAllocation[]
+  tripLogs          TripLog[]
+
+  @@map("driver_profiles")
+}
+
+model Product {
+  id               String            @id @default(cuid())
+  name             String
+  sku              String            @unique
+  unitType         String
+  unitVolume       String?
+  price            Decimal           @db.Decimal(12, 2)
+  status           Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  stockAllocations StockAllocation[]
+  orderItems       OrderItem[]
+  returnItems      ReturnItem[]
+
+  @@map("products")
+}
+
+model StockAllocation {
+  id             String       @id @default(cuid())
+  agentId        String
+  productId      String
+  allocatedQty   Int
+  usedQty        Int          @default(0)
+  remainingQty   Int
+  allocationDate DateTime     @default(now())
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  agent          AgentProfile @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  product        Product      @relation(fields: [productId], references: [id])
+
+  @@map("stock_allocations")
+}
+
+model Order {
+  id             String         @id @default(cuid())
+  orderNo        String         @unique
+  shopId         String
+  placedByUserId String
+  agentId        String?
+  driverId       String?
+  regionId       String
+  cityId         String
+  paymentType    PaymentType
+  paymentStatus  PaymentStatus  @default(PENDING)
+  approvalStatus ApprovalStatus @default(PENDING)
+  dispatchStatus DispatchStatus @default(PENDING)
+  orderStatus    OrderStatus    @default(PENDING_APPROVAL)
+  subtotal       Decimal        @db.Decimal(12, 2)
+  discountTotal  Decimal        @default(0) @db.Decimal(12, 2)
+  taxTotal       Decimal        @default(0) @db.Decimal(12, 2)
+  grandTotal     Decimal        @db.Decimal(12, 2)
+  notes          String?
+  orderedAt      DateTime       @default(now())
+  deliveryDate   DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  shop           Shop           @relation(fields: [shopId], references: [id])
+  placedByUser   User           @relation("OrderPlacedBy", fields: [placedByUserId], references: [id])
+  agent          AgentProfile?  @relation(fields: [agentId], references: [id])
+  driver         DriverProfile? @relation(fields: [driverId], references: [id])
+  region         Region         @relation(fields: [regionId], references: [id])
+  city           City           @relation(fields: [cityId], references: [id])
+  items          OrderItem[]
+  dispatches     Dispatch[]
+  invoice        Invoice?
+  discounts      Discount[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id            String        @id @default(cuid())
+  orderId       String
+  productId     String
+  qty           Int
+  unitPrice     Decimal       @db.Decimal(12, 2)
+  discountType  DiscountType?
+  discountValue Decimal?      @db.Decimal(12, 2)
+  lineTotal     Decimal       @db.Decimal(12, 2)
+  order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product       Product       @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+model Dispatch {
+  id             String         @id @default(cuid())
+  orderId        String
+  driverId       String
+  dispatchDate   DateTime?
+  deliveredDate  DateTime?
+  deliveryStatus DeliveryStatus @default(PENDING)
+  remarks        String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  order          Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  driver         DriverProfile  @relation(fields: [driverId], references: [id])
+
+  @@map("dispatches")
+}
+
+model Return {
+  id          String         @id @default(cuid())
+  returnNo    String         @unique
+  shopId      String
+  agentId     String?
+  driverId    String?
+  status      ReturnStatus   @default(PENDING)
+  requestedAt DateTime       @default(now())
+  approvedAt  DateTime?
+  notes       String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  shop        Shop           @relation(fields: [shopId], references: [id])
+  agent       AgentProfile?  @relation(fields: [agentId], references: [id])
+  driver      DriverProfile? @relation(fields: [driverId], references: [id])
+  items       ReturnItem[]
+
+  @@map("returns")
+}
+
+model ReturnItem {
+  id         String  @id @default(cuid())
+  returnId   String
+  productId  String
+  goodQty    Int     @default(0)
+  brokenQty  Int     @default(0)
+  missingQty Int     @default(0)
+  return     Return  @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  product    Product @relation(fields: [productId], references: [id])
+
+  @@map("return_items")
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNo     String        @unique
+  orderId       String        @unique
+  shopId        String
+  subtotal      Decimal       @db.Decimal(12, 2)
+  discountTotal Decimal       @default(0) @db.Decimal(12, 2)
+  taxTotal      Decimal       @default(0) @db.Decimal(12, 2)
+  total         Decimal       @db.Decimal(12, 2)
+  paymentStatus PaymentStatus @default(PENDING)
+  issuedAt      DateTime      @default(now())
+  dueDate       DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  order         Order         @relation(fields: [orderId], references: [id])
+  shop          Shop          @relation(fields: [shopId], references: [id])
+  payments      Payment[]
+
+  @@map("invoices")
+}
+
+model Payment {
+  id            String      @id @default(cuid())
+  invoiceId     String
+  shopId        String
+  paymentMethod PaymentType
+  amount        Decimal     @db.Decimal(12, 2)
+  referenceNo   String?
+  paidAt        DateTime    @default(now())
+  notes         String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  invoice       Invoice     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  shop          Shop        @relation(fields: [shopId], references: [id])
+
+  @@map("payments")
+}
+
+model Discount {
+  id             String         @id @default(cuid())
+  orderId        String
+  shopId         String
+  agentId        String
+  discountType   DiscountType
+  discountValue  Decimal        @db.Decimal(12, 2)
+  approvalStatus ApprovalStatus @default(PENDING)
+  approvedById   String?
+  approvedAt     DateTime?
+  reason         String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  order          Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  shop           Shop           @relation(fields: [shopId], references: [id])
+  agent          AgentProfile   @relation(fields: [agentId], references: [id])
+  approvedBy     User?          @relation("DiscountApprovedBy", fields: [approvedById], references: [id])
+
+  @@map("discounts")
+}
+
+model FuelAllocation {
+  id              String        @id @default(cuid())
+  driverId        String
+  tripDate        DateTime
+  allocatedLiters Decimal       @db.Decimal(10, 2)
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  driver          DriverProfile @relation(fields: [driverId], references: [id])
+
+  @@map("fuel_allocations")
+}
+
+model TripLog {
+  id         String        @id @default(cuid())
+  driverId   String
+  tripDate   DateTime
+  startTime  DateTime?
+  endTime    DateTime?
+  startMeter Decimal?      @db.Decimal(10, 2)
+  endMeter   Decimal?      @db.Decimal(10, 2)
+  totalKm    Decimal?      @db.Decimal(10, 2)
+  stopsCount Int           @default(0)
+  routeNotes String?
+  status     TripStatus    @default(PENDING)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  driver     DriverProfile @relation(fields: [driverId], references: [id])
+
+  @@map("trip_logs")
+}
+
+model NotificationTemplate {
+  id           String              @id @default(cuid())
+  name         String
+  channel      NotificationChannel
+  triggerEvent String
+  subject      String?
+  body         String
+  status       Boolean             @default(true)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@map("notification_templates")
+}
+
+model Notification {
+  id           String                 @id @default(cuid())
+  userId       String?
+  shopId       String?
+  channel      NotificationChannel
+  triggerEvent String
+  title        String
+  message      String
+  sentStatus   NotificationSendStatus @default(PENDING)
+  sentAt       DateTime?
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  shop         Shop?                  @relation(fields: [shopId], references: [id])
+
+  @@map("notifications")
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  userId     String
+  module     String
+  action     String
+  entityType String
+  entityId   String
+  oldValues  Json?
+  newValues  Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("activity_logs")
+}
+
+model Setting {
+  id            String   @id @default(cuid())
+  companyName   String
+  companyLogo   String?
+  slogan        String?
+  address       String?
+  contactNumber String?
+  brNumber      String?
+  email         String?
+  website       String?
+  currency      String   @default("LKR")
+  language      String   @default("en")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("settings")
 }
