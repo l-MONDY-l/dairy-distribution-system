@@ -6,6 +6,8 @@ import {
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 
 @Injectable()
 export class UsersService {
@@ -60,6 +62,97 @@ export class UsersService {
     return this.prisma.user.findMany({
       include: { role: true },
       orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async findOne(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      include: { role: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return user;
+  }
+
+  async update(id: string, updateUserDto: UpdateUserDto) {
+    const existingUser = await this.prisma.user.findUnique({
+      where: { id },
+      include: { role: true },
+    });
+
+    if (!existingUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    let roleId = existingUser.roleId;
+
+    if (updateUserDto.roleCode) {
+      const role = await this.prisma.role.findUnique({
+        where: { code: updateUserDto.roleCode },
+      });
+
+      if (!role) {
+        throw new NotFoundException('Role not found');
+      }
+
+      roleId = role.id;
+    }
+
+    if (updateUserDto.email && updateUserDto.email !== existingUser.email) {
+      const emailExists = await this.prisma.user.findUnique({
+        where: { email: updateUserDto.email },
+      });
+
+      if (emailExists) {
+        throw new BadRequestException('Email already in use');
+      }
+    }
+
+    if (
+      updateUserDto.phone &&
+      updateUserDto.phone !== existingUser.phone
+    ) {
+      const phoneExists = await this.prisma.user.findFirst({
+        where: { phone: updateUserDto.phone },
+      });
+
+      if (phoneExists) {
+        throw new BadRequestException('Phone already in use');
+      }
+    }
+
+    return this.prisma.user.update({
+      where: { id },
+      data: {
+        fullName: updateUserDto.fullName,
+        email: updateUserDto.email,
+        phone: updateUserDto.phone,
+        roleId,
+        status: updateUserDto.status,
+      },
+      include: { role: true },
+    });
+  }
+
+  async updateStatus(id: string, updateStatusDto: UpdateUserStatusDto) {
+    const existingUser = await this.prisma.user.findUnique({
+      where: { id },
+    });
+
+    if (!existingUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    return this.prisma.user.update({
+      where: { id },
+      data: {
+        status: updateStatusDto.status,
+      },
+      include: { role: true },
     });
   }
 }
