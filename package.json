@@ -19,5 +19,11 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "homepage": "https://github.com/l-MONDY-l/dairy-distribution-system#readme"
+  "homepage": "https://github.com/l-MONDY-l/dairy-distribution-system#readme",
+  "dependencies": {
+    "@prisma/client": "^7.5.0"
+  },
+  "devDependencies": {
+    "prisma": "^7.5.0"
+  }
 }

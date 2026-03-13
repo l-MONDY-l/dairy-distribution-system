@@ -94,16 +94,18 @@ export default function LoginPage() {
 
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
                 <div>
-                  <label className="mb-2 block text-sm font-medium">Email</label>
+                  <label className="mb-2 block text-sm font-medium">
+                    Email or Username
+                  </label>
                   <input
-                    type="email"
-                    placeholder="admin@dairy.local"
-                    {...register('email')}
+                    type="text"
+                    placeholder="admin@dairy.local or admin"
+                    {...register('identifier')}
                     className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 outline-none transition focus:border-emerald-500"
                   />
-                  {errors.email && (
+                  {errors.identifier && (
                     <p className="mt-2 text-sm text-red-400">
-                      {errors.email.message}
+                      {errors.identifier.message}
                     </p>
                   )}
                 </div>
@@ -144,7 +146,7 @@ export default function LoginPage() {
               <div className="mt-8 rounded-2xl border border-slate-800 bg-slate-950/80 p-4 text-sm text-slate-400">
                 <p>
                   <span className="font-semibold text-slate-200">Seed login:</span>{' '}
-                  admin@dairy.local / Admin@123
+                  admin@dairy.local <span className="text-slate-500">(or username: admin)</span> / Admin@123
                 </p>
               </div>
             </div>

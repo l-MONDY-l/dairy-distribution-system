@@ -37,3 +37,7 @@ export async function updateUserStatus(
   const response = await api.patch(`/users/${id}/status`, { status });
   return response.data;
 }
+
+export async function deleteUser(id: string): Promise<void> {
+  await api.delete(`/users/${id}`);
+}

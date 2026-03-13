@@ -26,6 +26,7 @@ export class UsersService {
       where: {
         OR: [
           { email: createUserDto.email },
+          ...(createUserDto.username ? [{ username: createUserDto.username }] : []),
           ...(createUserDto.phone ? [{ phone: createUserDto.phone }] : []),
         ],
       },
@@ -40,6 +41,7 @@ export class UsersService {
     return this.prisma.user.create({
       data: {
         fullName: createUserDto.fullName,
+        username: createUserDto.username,
         email: createUserDto.email,
         phone: createUserDto.phone,
         passwordHash,
@@ -54,6 +56,15 @@ export class UsersService {
   async findByEmail(email: string) {
     return this.prisma.user.findUnique({
       where: { email },
+      include: { role: true },
+    });
+  }
+
+  async findByIdentifier(identifier: string) {
+    return this.prisma.user.findFirst({
+      where: {
+        OR: [{ email: identifier }, { username: identifier }],
+      },
       include: { role: true },
     });
   }
@@ -125,10 +136,24 @@ export class UsersService {
       }
     }
 
+    if (
+      updateUserDto.username &&
+      updateUserDto.username !== existingUser.username
+    ) {
+      const usernameExists = await this.prisma.user.findFirst({
+        where: { username: updateUserDto.username },
+      });
+
+      if (usernameExists) {
+        throw new BadRequestException('Username already in use');
+      }
+    }
+
     return this.prisma.user.update({
       where: { id },
       data: {
         fullName: updateUserDto.fullName,
+        username: updateUserDto.username,
         email: updateUserDto.email,
         phone: updateUserDto.phone,
         roleId,
@@ -154,5 +179,21 @@ export class UsersService {
       },
       include: { role: true },
     });
+  }
+
+  async remove(id: string) {
+    const existingUser = await this.prisma.user.findUnique({
+      where: { id },
+    });
+
+    if (!existingUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    await this.prisma.user.delete({
+      where: { id },
+    });
+
+    return { success: true };
   }
 }

@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "../../node_modules/.prisma/client"
 }
 
 datasource db {
@@ -133,6 +134,7 @@ model RolePermission {
 model User {
   id                String         @id @default(cuid())
   fullName          String
+  username          String?        @unique
   email             String         @unique
   phone             String?        @unique
   passwordHash      String
@@ -148,6 +150,27 @@ model User {
   activityLogs      ActivityLog[]
 
   @@map("users")
+}
+
+model CompanySetting {
+  id                String   @id @default(cuid())
+  name              String
+  email             String?
+  phone             String?
+  contactPersonName String?
+  contactEmail      String?
+  country           String?
+  street            String?
+  addressNo         String?
+  postalCode        String?
+  website           String?
+  taxId             String?
+  openingTime       String?  // e.g. "08:00"
+  closingTime       String?  // e.g. "18:00"
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("company_settings")
 }
 
 model Region {
@@ -176,6 +199,7 @@ model City {
   region    Region   @relation(fields: [regionId], references: [id], onDelete: Cascade)
   shops     Shop[]
   orders    Order[]
+  assignment CityAssignment? @relation("CityAssignmentCity")
 
   @@unique([regionId, name])
   @@map("cities")
@@ -231,6 +255,7 @@ model AgentProfile {
   orders            Order[]
   returns           Return[]
   discounts         Discount[]
+  cityAssignments   CityAssignment[]  @relation("AgentCityAssignments")
 
   @@map("agent_profiles")
 }
@@ -255,8 +280,24 @@ model DriverProfile {
   dispatches        Dispatch[]
   fuelAllocations   FuelAllocation[]
   tripLogs          TripLog[]
+  cityAssignments   CityAssignment[] @relation("DriverCityAssignments")
 
   @@map("driver_profiles")
+}
+
+model CityAssignment {
+  id        String   @id @default(cuid())
+  cityId    String   @unique
+  agentId   String
+  driverId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  city   City          @relation("CityAssignmentCity", fields: [cityId], references: [id], onDelete: Cascade)
+  agent  AgentProfile  @relation("AgentCityAssignments", fields: [agentId], references: [id])
+  driver DriverProfile @relation("DriverCityAssignments", fields: [driverId], references: [id])
+
+  @@map("city_assignments")
 }
 
 model Product {
@@ -549,3 +590,127 @@ model Setting {
 
   @@map("settings")
 }
+
+enum BusinessType {
+  SOLE_PROPRIETORSHIP
+  PARTNERSHIP
+  PRIVATE_LIMITED
+  PUBLIC_LIMITED
+  OTHER
+}
+
+enum IndustryType {
+  DAIRY_MANUFACTURING
+  DAIRY_DISTRIBUTION
+  DAIRY_MANUFACTURING_DISTRIBUTION
+  FOOD_PROCESSING
+  OTHER
+}
+
+model CompanyProfile {
+  id                             String        @id @default(cuid())
+  companyCode                    String        @unique
+  legalName                      String
+  brandName                      String
+  registrationNumber             String
+  taxId                          String?
+  vatNumber                      String?
+  businessType                   BusinessType
+  industryType                   IndustryType  @default(DAIRY_MANUFACTURING_DISTRIBUTION)
+  companyEmail                   String
+  companyPhone                   String
+  companyMobile                  String?
+  whatsappNumber                 String?
+  website                        String?
+  logoUrl                        String?
+  profileImageUrl                String?
+  description                    String?
+  establishedDate                DateTime?
+  isActive                       Boolean       @default(true)
+
+  // Factory information
+  factoryName                    String?
+  factoryLicenseNumber           String?
+  foodSafetyLicenseNumber        String?
+  dairyBoardRegistrationNumber   String?
+  processingCapacityLitersPerDay Int           @default(0)
+  coldStorageCapacityLiters      Int           @default(0)
+  factoryPhone                   String?
+  factoryEmail                   String?
+
+  // Address
+  addressLine1                   String
+  addressLine2                   String?
+  street                         String?
+  city                           String
+  district                       String
+  province                       String
+  postalCode                     String
+  country                        String
+  latitude                       Float?
+  longitude                      Float?
+
+  // Management / responsible persons
+  ownerName                      String?
+  managingDirectorName           String?
+  operationsManagerName          String?
+  financeManagerName             String?
+  factoryManagerName             String?
+  primaryContactPerson           String
+  primaryContactEmail            String?
+  primaryContactPhone            String
+  emergencyContactName           String?
+  emergencyContactPhone          String?
+
+  // Business operations
+  businessOpenTime               String?
+  businessCloseTime              String?
+  factoryOpenTime                String?
+  factoryCloseTime               String?
+  deliveryStartTime              String?
+  deliveryEndTime                String?
+  workingDays                    String[]
+
+  // Distribution information
+  distributionRegions            String[]
+  fleetSize                      Int           @default(0)
+  numberOfDrivers                Int           @default(0)
+  numberOfAgents                 Int           @default(0)
+  dailyDeliveryCapacity          Int           @default(0)
+  supportsIslandwideDelivery     Boolean       @default(false)
+
+  // Compliance & certifications
+  hasSLS                         Boolean       @default(false)
+  hasISO22000                    Boolean       @default(false)
+  hasHACCP                       Boolean       @default(false)
+  hasISO9001                     Boolean       @default(false)
+  certificationNotes             String?
+
+  // Financial details
+  bankName                       String?
+  bankBranch                     String?
+  accountName                    String?
+  accountNumber                  String?
+  swiftCode                      String?
+  paymentSupportEmail            String?
+  billingEmail                   String?
+
+  // System configuration
+  defaultCurrency                String        @default("LKR")
+  timezone                       String        @default("Asia/Colombo")
+  language                       String        @default("en")
+  invoicePrefix                  String        @default("INV-")
+  orderPrefix                    String        @default("ORD-")
+  clientPrefix                   String        @default("CLT-")
+  agentPrefix                    String        @default("AGT-")
+  driverPrefix                   String        @default("DRV-")
+  stockPrefix                    String        @default("STK-")
+
+  createdAt                      DateTime      @default(now())
+  updatedAt                      DateTime      @updatedAt
+
+  @@index([businessType])
+  @@index([industryType])
+  @@map("company_profiles")
+}
+
