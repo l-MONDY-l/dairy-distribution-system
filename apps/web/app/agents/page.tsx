@@ -5,6 +5,7 @@ import AppLayout from '@/components/layout/app-layout';
 import { getRegions } from '@/lib/regions-api';
 import {
   createAgent,
+  deleteAgent,
   getAgents,
   getAvailableAgentUsers,
   updateAgent,
@@ -50,6 +51,7 @@ export default function AgentsPage() {
   const [editingAgent, setEditingAgent] = useState<AgentProfile | null>(null);
   const [editForm, setEditForm] =
     useState<UpdateAgentPayload>(initialEditForm);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const loadData = async () => {
     try {
@@ -173,6 +175,35 @@ export default function AgentsPage() {
       await loadData();
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Failed to update agent status.');
+    }
+  };
+
+  const handleDeleteAgent = async (agent: AgentProfile) => {
+    const name = agent.user?.fullName ?? agent.user?.email ?? agent.id;
+    if (
+      !window.confirm(
+        `Do you want to delete this agent? (${name})\n\nThis will remove their profile and unassign them from towns, orders, and related records.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      setDeletingId(agent.id);
+      setError('');
+      setSuccess('');
+
+      await deleteAgent(agent.id);
+
+      setSuccess('Agent deleted successfully.');
+      setAgents((prev) => prev.filter((a) => a.id !== agent.id));
+      if (editingAgent?.id === agent.id) {
+        setEditingAgent(null);
+        setEditForm(initialEditForm);
+      }
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Failed to delete agent.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -334,7 +365,7 @@ export default function AgentsPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex gap-2">
+                          <div className="flex flex-wrap gap-2">
                             <button
                               onClick={() => openEditModal(agent)}
                               className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800"
@@ -346,6 +377,13 @@ export default function AgentsPage() {
                               className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800"
                             >
                               {agent.status ? 'Disable' : 'Activate'}
+                            </button>
+                            <button
+                              onClick={() => handleDeleteAgent(agent)}
+                              disabled={deletingId === agent.id}
+                              className="rounded-xl border border-red-500/70 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+                            >
+                              {deletingId === agent.id ? 'Deleting…' : 'Delete'}
                             </button>
                           </div>
                         </td>

@@ -1,6 +1,6 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../../node_modules/.prisma/client"
+  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
@@ -65,6 +65,7 @@ enum DiscountType {
 
 enum ReturnStatus {
   PENDING
+  HOLD
   APPROVED
   REJECTED
 }
@@ -174,12 +175,13 @@ model CompanySetting {
 }
 
 model Region {
-  id        String          @id @default(cuid())
-  name      String          @unique
-  code      String          @unique
-  status    Boolean         @default(true)
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
+  id        String     @id @default(cuid())
+  name      String     @unique
+  code      String     @unique
+  status    Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  districts District[]
   cities    City[]
   shops     Shop[]
   agents    AgentProfile[]
@@ -189,20 +191,52 @@ model Region {
   @@map("regions")
 }
 
-model City {
+model District {
   id        String   @id @default(cuid())
-  regionId  String
   name      String
+  code      String   @unique
   status    Boolean  @default(true)
+  regionId  String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   region    Region   @relation(fields: [regionId], references: [id], onDelete: Cascade)
-  shops     Shop[]
-  orders    Order[]
+  cities    City[]
+
+  @@map("districts")
+}
+
+model City {
+  id         String    @id @default(cuid())
+  districtId String?
+  regionId   String
+  name       String
+  status     Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  district   District? @relation(fields: [districtId], references: [id], onDelete: SetNull)
+  region     Region    @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  shops      Shop[]
+  orders     Order[]
+  towns      Town[]
   assignment CityAssignment? @relation("CityAssignmentCity")
 
   @@unique([regionId, name])
   @@map("cities")
+}
+
+model Town {
+  id         String           @id @default(cuid())
+  name       String
+  code       String           @unique
+  status     Boolean          @default(true)
+  cityId     String
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  city       City             @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  assignment TownAssignment?  @relation("TownAssignmentTown")
+
+  @@unique([cityId, name])
+  @@map("towns")
 }
 
 model Shop {
@@ -255,7 +289,8 @@ model AgentProfile {
   orders            Order[]
   returns           Return[]
   discounts         Discount[]
-  cityAssignments   CityAssignment[]  @relation("AgentCityAssignments")
+  cityAssignments   CityAssignment[]   @relation("AgentCityAssignments")
+  townAssignments   TownAssignment[]  @relation("AgentTownAssignments")
 
   @@map("agent_profiles")
 }
@@ -280,7 +315,8 @@ model DriverProfile {
   dispatches        Dispatch[]
   fuelAllocations   FuelAllocation[]
   tripLogs          TripLog[]
-  cityAssignments   CityAssignment[] @relation("DriverCityAssignments")
+  cityAssignments   CityAssignment[]  @relation("DriverCityAssignments")
+  townAssignments   TownAssignment[] @relation("DriverTownAssignments")
 
   @@map("driver_profiles")
 }
@@ -298,6 +334,21 @@ model CityAssignment {
   driver DriverProfile @relation("DriverCityAssignments", fields: [driverId], references: [id])
 
   @@map("city_assignments")
+}
+
+model TownAssignment {
+  id        String   @id @default(cuid())
+  townId    String   @unique
+  agentId   String
+  driverId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  town   Town          @relation("TownAssignmentTown", fields: [townId], references: [id], onDelete: Cascade)
+  agent  AgentProfile  @relation("AgentTownAssignments", fields: [agentId], references: [id])
+  driver DriverProfile @relation("DriverTownAssignments", fields: [driverId], references: [id])
+
+  @@map("town_assignments")
 }
 
 model Product {

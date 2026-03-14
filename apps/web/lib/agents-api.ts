@@ -39,3 +39,7 @@ export async function updateAgentStatus(
   return response.data;
 }
 
+export async function deleteAgent(id: string): Promise<void> {
+  await api.delete(`/agents/${id}`);
+}
+

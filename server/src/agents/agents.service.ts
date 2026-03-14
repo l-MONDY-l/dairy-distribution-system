@@ -146,5 +146,37 @@ export class AgentsService {
       },
     });
   }
+
+  async remove(id: string) {
+    const existing = await this.prisma.agentProfile.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Agent profile not found');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.cityAssignment.deleteMany({ where: { agentId: id } });
+      await tx.townAssignment.deleteMany({ where: { agentId: id } });
+      await tx.stockAllocation.deleteMany({ where: { agentId: id } });
+      await tx.discount.deleteMany({ where: { agentId: id } });
+      await tx.order.updateMany({
+        where: { agentId: id },
+        data: { agentId: null },
+      });
+      await tx.return.updateMany({
+        where: { agentId: id },
+        data: { agentId: null },
+      });
+      await tx.shop.updateMany({
+        where: { assignedAgentId: id },
+        data: { assignedAgentId: null },
+      });
+      await tx.agentProfile.delete({ where: { id } });
+    });
+
+    return { deleted: true };
+  }
 }
 

@@ -34,3 +34,15 @@ export async function updateReturnStatus(
   return response.data;
 }
 
+export async function updateReturn(
+  id: string,
+  payload: { notes?: string },
+): Promise<ReturnRecord> {
+  const response = await api.patch(`/returns/${id}`, payload);
+  return response.data;
+}
+
+export async function deleteReturn(id: string): Promise<void> {
+  await api.delete(`/returns/${id}`);
+}
+

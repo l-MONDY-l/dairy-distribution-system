@@ -140,6 +140,56 @@ export class OrdersService {
     });
   }
 
+  async findOne(id: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+      include: {
+        shop: true,
+        region: true,
+        city: true,
+        agent: { include: { user: true } },
+        driver: { include: { user: true } },
+        items: { include: { product: true } },
+      },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    return order;
+  }
+
+  async update(
+    id: string,
+    data: { orderStatus?: OrderStatus; notes?: string },
+  ) {
+    const order = await this.prisma.order.findUnique({ where: { id } });
+    if (!order) throw new NotFoundException('Order not found');
+
+    return this.prisma.order.update({
+      where: { id },
+      data: {
+        ...(data.orderStatus != null && { orderStatus: data.orderStatus }),
+        ...(data.notes !== undefined && { notes: data.notes }),
+      },
+      include: {
+        shop: true,
+        region: true,
+        city: true,
+        agent: { include: { user: true } },
+        driver: { include: { user: true } },
+        items: { include: { product: true } },
+      },
+    });
+  }
+
+  async remove(id: string) {
+    const order = await this.prisma.order.findUnique({ where: { id } });
+    if (!order) throw new NotFoundException('Order not found');
+
+    await this.prisma.invoice.deleteMany({ where: { orderId: id } });
+    await this.prisma.orderItem.deleteMany({ where: { orderId: id } });
+    await this.prisma.order.delete({ where: { id } });
+    return { deleted: true };
+  }
+
   async assignDriver(orderId: string, driverId: string) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },

@@ -39,3 +39,7 @@ export async function updateDriverStatus(
   return response.data;
 }
 
+export async function deleteDriver(id: string): Promise<void> {
+  await api.delete(`/drivers/${id}`);
+}
+

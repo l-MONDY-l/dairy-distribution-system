@@ -68,12 +68,32 @@ export type Region = {
   status: boolean;
 };
 
+export type District = {
+  id: string;
+  name: string;
+  code: string;
+  status: boolean;
+  regionId: string;
+  region?: Region;
+};
+
 export type City = {
   id: string;
   name: string;
   status: boolean;
   regionId: string;
+  districtId?: string | null;
   region?: Region;
+  district?: District | null;
+};
+
+export type Town = {
+  id: string;
+  name: string;
+  code: string;
+  status: boolean;
+  cityId: string;
+  city?: City;
 };
 
 export type CityAssignment = {
@@ -189,6 +209,7 @@ export type Order = {
     | 'REJECTED';
   subtotal: string;
   grandTotal: string;
+  notes?: string | null;
   orderedAt: string;
   shop: Shop;
   region: Region;
@@ -220,7 +241,7 @@ export type CreateOrderPayload = {
   items: OrderItemInput[];
 };
 
-export type ReturnStatusType = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type ReturnStatusType = 'PENDING' | 'HOLD' | 'APPROVED' | 'REJECTED';
 
 export type ReturnItem = {
   id: string;

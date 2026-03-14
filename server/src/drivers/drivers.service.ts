@@ -152,5 +152,38 @@ export class DriversService {
       },
     });
   }
+
+  async remove(id: string) {
+    const existing = await this.prisma.driverProfile.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Driver profile not found');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.cityAssignment.deleteMany({ where: { driverId: id } });
+      await tx.townAssignment.deleteMany({ where: { driverId: id } });
+      await tx.dispatch.deleteMany({ where: { driverId: id } });
+      await tx.fuelAllocation.deleteMany({ where: { driverId: id } });
+      await tx.tripLog.deleteMany({ where: { driverId: id } });
+      await tx.return.updateMany({
+        where: { driverId: id },
+        data: { driverId: null },
+      });
+      await tx.order.updateMany({
+        where: { driverId: id },
+        data: { driverId: null },
+      });
+      await tx.shop.updateMany({
+        where: { assignedDriverId: id },
+        data: { assignedDriverId: null },
+      });
+      await tx.driverProfile.delete({ where: { id } });
+    });
+
+    return { deleted: true };
+  }
 }
 

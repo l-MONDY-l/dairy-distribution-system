@@ -5,7 +5,13 @@ import AppLayout from '@/components/layout/app-layout';
 import { getShops } from '@/lib/shops-api';
 import { getAgents } from '@/lib/agents-api';
 import { getProducts } from '@/lib/products-api';
-import { getOrders, createOrder } from '@/lib/orders-api';
+import {
+  createOrder,
+  deleteOrder,
+  getOrders,
+  updateOrder,
+  type UpdateOrderPayload,
+} from '@/lib/orders-api';
 import type {
   AgentProfile,
   CreateOrderPayload,
@@ -37,6 +43,11 @@ export default function OrdersPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  const [editOrderId, setEditOrderId] = useState<string | null>(null);
+  const [editStatus, setEditStatus] = useState<Order['orderStatus'] | ''>('');
+  const [editNotes, setEditNotes] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
 
   const [shopId, setShopId] = useState('');
   const [agentId, setAgentId] = useState('');
@@ -175,6 +186,88 @@ export default function OrdersPage() {
       setSaving(false);
     }
   };
+
+  const openEdit = (order: Order) => {
+    setEditOrderId(order.id);
+    setEditStatus(order.orderStatus);
+    setEditNotes(order.notes ?? '');
+    setError('');
+    setSuccess('');
+  };
+
+  const closeEdit = () => {
+    if (!editSaving) {
+      setEditOrderId(null);
+      setEditStatus('');
+      setEditNotes('');
+    }
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editOrderId || !editStatus) return;
+    try {
+      setEditSaving(true);
+      setError('');
+      const payload: UpdateOrderPayload = {
+        orderStatus: editStatus as Order['orderStatus'],
+        notes: editNotes.trim() || undefined,
+      };
+      await updateOrder(editOrderId, payload);
+      setSuccess('Order updated.');
+      await loadData();
+      closeEdit();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Failed to update order.');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handleApproved = async (order: Order) => {
+    try {
+      setError('');
+      await updateOrder(order.id, { orderStatus: 'APPROVED' });
+      setSuccess(`Order ${order.orderNo} approved.`);
+      await loadData();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Failed to approve order.');
+    }
+  };
+
+  const handleHold = async (order: Order) => {
+    try {
+      setError('');
+      await updateOrder(order.id, { orderStatus: 'DRAFT' });
+      setSuccess(`Order ${order.orderNo} put on hold.`);
+      await loadData();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Failed to hold order.');
+    }
+  };
+
+  const handleDelete = async (order: Order) => {
+    if (!window.confirm(`Do you want to delete this order? (${order.orderNo})\n\nThis cannot be undone.`)) return;
+    try {
+      setError('');
+      await deleteOrder(order.id);
+      setSuccess('Order deleted.');
+      await loadData();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Failed to delete order.');
+    }
+  };
+
+  const orderStatusOptions: { value: Order['orderStatus']; label: string }[] = [
+    { value: 'DRAFT', label: 'Draft / Hold' },
+    { value: 'PENDING_APPROVAL', label: 'Pending Approval' },
+    { value: 'APPROVED', label: 'Approved' },
+    { value: 'ASSIGNED', label: 'Assigned' },
+    { value: 'DISPATCHED', label: 'Dispatched' },
+    { value: 'DELIVERED', label: 'Delivered' },
+    { value: 'CANCELLED', label: 'Cancelled' },
+    { value: 'REJECTED', label: 'Rejected' },
+  ];
 
   return (
     <AppLayout>
@@ -350,9 +443,11 @@ export default function OrdersPage() {
                       <th className="px-4 py-3 font-medium">Order No</th>
                       <th className="px-4 py-3 font-medium">Shop</th>
                       <th className="px-4 py-3 font-medium">Region</th>
+                      <th className="px-4 py-3 font-medium">Status</th>
                       <th className="px-4 py-3 font-medium">Payment</th>
                       <th className="px-4 py-3 font-medium">Total</th>
                       <th className="px-4 py-3 font-medium">Date</th>
+                      <th className="px-4 py-3 font-medium text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -371,6 +466,11 @@ export default function OrdersPage() {
                           {order.region.name} / {order.city.name}
                         </td>
                         <td className="px-4 py-3 text-slate-300">
+                          <span className="rounded-full bg-slate-700/60 px-2 py-0.5 text-xs">
+                            {order.orderStatus.replace(/_/g, ' ')}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-300">
                           {order.paymentType}
                         </td>
                         <td className="px-4 py-3 text-slate-200">
@@ -381,6 +481,38 @@ export default function OrdersPage() {
                             .toISOString()
                             .slice(0, 10)}
                         </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex flex-wrap justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => openEdit(order)}
+                              className="rounded-xl border border-slate-600 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleApproved(order)}
+                              className="rounded-xl border border-emerald-600/70 px-2.5 py-1.5 text-xs text-emerald-300 hover:bg-emerald-500/10"
+                            >
+                              Approved
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleHold(order)}
+                              className="rounded-xl border border-amber-600/70 px-2.5 py-1.5 text-xs text-amber-300 hover:bg-amber-500/10"
+                            >
+                              Hold
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(order)}
+                              className="rounded-xl border border-red-500/70 px-2.5 py-1.5 text-xs text-red-400 hover:bg-red-500/10"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -390,6 +522,68 @@ export default function OrdersPage() {
           </div>
         </div>
       </div>
+
+      {editOrderId && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4 py-6"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !editSaving) closeEdit();
+          }}
+        >
+          <div className="w-full max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-100">Edit Order</h3>
+            <form onSubmit={handleSaveEdit} className="mt-4 space-y-4">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-300">
+                  Status
+                </label>
+                <select
+                  value={editStatus}
+                  onChange={(e) =>
+                    setEditStatus(e.target.value as Order['orderStatus'])
+                  }
+                  required
+                  className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-emerald-500"
+                >
+                  {orderStatusOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-300">
+                  Notes (optional)
+                </label>
+                <textarea
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  rows={3}
+                  className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={closeEdit}
+                  disabled={editSaving}
+                  className="rounded-2xl border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800 disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editSaving}
+                  className="rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
+                >
+                  {editSaving ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

@@ -5,6 +5,7 @@ import AppLayout from '@/components/layout/app-layout';
 import { getRegions } from '@/lib/regions-api';
 import {
   createDriver,
+  deleteDriver,
   getAvailableDriverUsers,
   getDrivers,
   updateDriver,
@@ -55,6 +56,7 @@ export default function DriversPage() {
     useState<DriverProfile | null>(null);
   const [editForm, setEditForm] =
     useState<UpdateDriverPayload>(initialEditForm);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const loadData = async () => {
     try {
@@ -179,6 +181,31 @@ export default function DriversPage() {
       await loadData();
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Failed to update status.');
+    }
+  };
+
+  const handleDeleteDriver = async (driver: DriverProfile) => {
+    if (
+      !window.confirm(
+        `Do you want to delete this driver? (${driver.user?.fullName ?? driver.id})\n\nThis will remove their profile and unassign them from towns, orders, and related records.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      setDeletingId(driver.id);
+      setError('');
+      setSuccess('');
+
+      await deleteDriver(driver.id);
+
+      setSuccess('Driver deleted successfully.');
+      setDrivers((prev) => prev.filter((d) => d.id !== driver.id));
+      if (editingDriver?.id === driver.id) closeEditModal();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Failed to delete driver.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -356,7 +383,7 @@ export default function DriversPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex gap-2">
+                          <div className="flex flex-wrap gap-2">
                             <button
                               onClick={() => openEditModal(driver)}
                               className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800"
@@ -368,6 +395,13 @@ export default function DriversPage() {
                               className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800"
                             >
                               {driver.status ? 'Disable' : 'Activate'}
+                            </button>
+                            <button
+                              onClick={() => handleDeleteDriver(driver)}
+                              disabled={deletingId === driver.id}
+                              className="rounded-xl border border-red-500/70 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+                            >
+                              {deletingId === driver.id ? 'Deleting…' : 'Delete'}
                             </button>
                           </div>
                         </td>

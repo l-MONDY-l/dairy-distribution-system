@@ -6,6 +6,7 @@ import {
 import { Prisma, ReturnStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReturnDto } from './dto/create-return.dto';
+import { UpdateReturnDto } from './dto/update-return.dto';
 import { UpdateReturnStatusDto } from './dto/update-return-status.dto';
 
 @Injectable()
@@ -131,9 +132,13 @@ export class ReturnsService {
       throw new NotFoundException('Return not found');
     }
 
-    if (existing.status !== ReturnStatus.PENDING) {
+    const allowedFrom: ReturnStatus[] = [
+      ReturnStatus.PENDING,
+      ReturnStatus.HOLD,
+    ];
+    if (!allowedFrom.includes(existing.status)) {
       throw new BadRequestException(
-        'Only pending returns can be updated',
+        'Only pending or hold returns can have status updated',
       );
     }
 
@@ -152,6 +157,55 @@ export class ReturnsService {
         items: { include: { product: true } },
       },
     });
+  }
+
+  async update(id: string, dto: UpdateReturnDto) {
+    const existing = await this.prisma.return.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Return not found');
+    }
+
+    const allowedStatuses: ReturnStatus[] = [
+      ReturnStatus.PENDING,
+      ReturnStatus.HOLD,
+    ];
+    if (!allowedStatuses.includes(existing.status)) {
+      throw new BadRequestException(
+        'Only pending or hold returns can be edited',
+      );
+    }
+
+    return this.prisma.return.update({
+      where: { id },
+      data: {
+        notes: dto.notes,
+      },
+      include: {
+        shop: true,
+        agent: { include: { user: true } },
+        driver: { include: { user: true } },
+        items: { include: { product: true } },
+      },
+    });
+  }
+
+  async remove(id: string) {
+    const existing = await this.prisma.return.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Return not found');
+    }
+
+    await this.prisma.return.delete({
+      where: { id },
+    });
+
+    return { deleted: true };
   }
 }
 

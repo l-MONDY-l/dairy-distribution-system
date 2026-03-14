@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  Param,
+  Patch,
   Post,
   Query,
   Res,
@@ -17,11 +20,6 @@ export class OrdersController {
   @Get()
   findAll() {
     return this.ordersService.findAll();
-  }
-
-  @Post()
-  create(@Body() createOrderDto: CreateOrderDto) {
-    return this.ordersService.create(createOrderDto);
   }
 
   @Get('report')
@@ -94,6 +92,30 @@ export class OrdersController {
       'attachment; filename="order-report.csv"',
     );
     res.send(csv);
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.ordersService.findOne(id);
+  }
+
+  @Post()
+  create(@Body() createOrderDto: CreateOrderDto) {
+    return this.ordersService.create(createOrderDto);
+  }
+
+  @Patch(':id')
+  update(
+    @Param('id') id: string,
+    @Body('orderStatus') orderStatus?: OrderStatus,
+    @Body('notes') notes?: string,
+  ) {
+    return this.ordersService.update(id, { orderStatus, notes });
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.ordersService.remove(id);
   }
 }
 

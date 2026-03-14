@@ -1,7 +1,17 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ReturnStatus } from '@prisma/client';
 import { ReturnsService } from './returns.service';
 import { CreateReturnDto } from './dto/create-return.dto';
+import { UpdateReturnDto } from './dto/update-return.dto';
 import { UpdateReturnStatusDto } from './dto/update-return-status.dto';
 
 @Controller('returns')
@@ -38,6 +48,16 @@ export class ReturnsController {
     @Body() dto: UpdateReturnStatusDto,
   ) {
     return this.returnsService.updateStatus(id, dto);
+  }
+
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: UpdateReturnDto) {
+    return this.returnsService.update(id, dto);
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.returnsService.remove(id);
   }
 }
 

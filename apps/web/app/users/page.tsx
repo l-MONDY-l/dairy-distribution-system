@@ -262,14 +262,14 @@ function validatePhoneForCountry(code: string, number: string): string | undefin
   return undefined;
 }
 
-function validateCreateForm(form: CreateUserPayload): Record<string, string> {
+function validateCreateForm(form: CreateUserPayload, lastName = ''): Record<string, string> {
   const err: Record<string, string> = {};
-  const name = form.fullName?.trim() ?? '';
-  if (!name) err.fullName = 'Full name is required.';
-  else if (name.length < 2) err.fullName = 'Full name must be at least 2 characters.';
-  else if (name.length > 100) err.fullName = 'Full name must be at most 100 characters.';
-  else if (!/^[A-Za-z\s]+$/.test(name))
-    err.fullName = 'Full name can contain only letters and spaces.';
+  const combinedName = `${(form.fullName?.trim() ?? '')} ${(lastName ?? '').trim()}`.trim() || (form.fullName?.trim() ?? '');
+  if (!combinedName) err.fullName = 'First name is required.';
+  else if (combinedName.length < 2) err.fullName = 'Name must be at least 2 characters.';
+  else if (combinedName.length > 100) err.fullName = 'Full name must be at most 100 characters.';
+  else if (!/^[A-Za-z\s]+$/.test(combinedName))
+    err.fullName = 'Name can contain only letters and spaces.';
 
   const username = form.username?.trim() ?? '';
   if (!username) err.username = 'Username is required.';
@@ -300,14 +300,14 @@ function validateCreateForm(form: CreateUserPayload): Record<string, string> {
   return err;
 }
 
-function validateEditForm(form: UpdateUserPayload): Record<string, string> {
+function validateEditForm(form: UpdateUserPayload, lastName = ''): Record<string, string> {
   const err: Record<string, string> = {};
-  const name = form.fullName?.trim() ?? '';
-  if (!name) err.fullName = 'Full name is required.';
-  else if (name.length < 2) err.fullName = 'Full name must be at least 2 characters.';
-  else if (name.length > 100) err.fullName = 'Full name must be at most 100 characters.';
-  else if (!/^[A-Za-z\s]+$/.test(name))
-    err.fullName = 'Full name can contain only letters and spaces.';
+  const combinedName = `${(form.fullName?.trim() ?? '')} ${(lastName ?? '').trim()}`.trim() || (form.fullName?.trim() ?? '');
+  if (!combinedName) err.fullName = 'First name is required.';
+  else if (combinedName.length < 2) err.fullName = 'Name must be at least 2 characters.';
+  else if (combinedName.length > 100) err.fullName = 'Full name must be at most 100 characters.';
+  else if (!/^[A-Za-z\s]+$/.test(combinedName))
+    err.fullName = 'Name can contain only letters and spaces.';
 
   const username = (form.username ?? '').trim();
   if (username.length > 0) {
@@ -345,9 +345,11 @@ export default function UsersPage() {
   const [success, setSuccess] = useState('');
   const [createForm, setCreateForm] =
     useState<CreateUserPayload>(initialCreateForm);
+  const [createFormLastName, setCreateFormLastName] = useState('');
 
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editForm, setEditForm] = useState<UpdateUserPayload>(initialEditForm);
+  const [editFormLastName, setEditFormLastName] = useState('');
 
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
@@ -497,7 +499,7 @@ export default function UsersPage() {
     const { name, value } = e.target;
     setCreateForm((prev) => {
       const next = { ...prev, [name]: value } as CreateUserPayload;
-      const fieldErrors = validateCreateForm(next);
+      const fieldErrors = validateCreateForm(next, createFormLastName);
       setCreateFieldErrors((prevErrs) => ({
         ...prevErrs,
         [name]: fieldErrors[name as keyof CreateUserPayload] ?? '',
@@ -543,7 +545,7 @@ export default function UsersPage() {
     const { name, value } = e.target;
     setEditForm((prev) => {
       const next = { ...prev, [name]: value } as UpdateUserPayload;
-      const fieldErrors = validateEditForm(next);
+      const fieldErrors = validateEditForm(next, editFormLastName);
       setEditFieldErrors((prevErrs) => ({
         ...prevErrs,
         [name]: fieldErrors[name as keyof UpdateUserPayload] ?? '',
@@ -564,7 +566,7 @@ export default function UsersPage() {
     const capped = code === '+94' && digits.length > 0 && digits[0] !== '7' ? '7' + digits.slice(0, 8) : digits.slice(0, maxLen);
     setEditForm((prev) => {
       const next = { ...prev, phone: code + capped };
-      const fieldErrors = validateEditForm(next);
+      const fieldErrors = validateEditForm(next, editFormLastName);
       setEditFieldErrors((prevErrs) => ({ ...prevErrs, phone: fieldErrors.phone ?? '' }));
       return next;
     });
@@ -577,7 +579,7 @@ export default function UsersPage() {
     const full = editPhoneCountryCode + withLeading7;
     setEditForm((prev) => {
       const next = { ...prev, phone: full };
-      const fieldErrors = validateEditForm(next);
+      const fieldErrors = validateEditForm(next, editFormLastName);
       setEditFieldErrors((prevErrs) => ({ ...prevErrs, phone: fieldErrors.phone ?? '' }));
       return next;
     });
@@ -586,8 +588,8 @@ export default function UsersPage() {
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const fieldErrors = validateCreateForm(createForm);
-    if (Object.keys(fieldErrors).length > 0) {
+    const fieldErrors = validateCreateForm(createForm, createFormLastName);
+    if (Object.values(fieldErrors).some(Boolean)) {
       setCreateFieldErrors(fieldErrors);
       setError('Please fix the errors below.');
       return;
@@ -600,8 +602,10 @@ export default function UsersPage() {
       setSaving(true);
       setSuccess('');
 
+      const fullName = `${createForm.fullName.trim()} ${createFormLastName.trim()}`.trim();
       await createUser({
         ...createForm,
+        fullName: fullName || createForm.fullName,
         phone: createForm.phone?.trim() ? createForm.phone : undefined,
       });
 
@@ -619,6 +623,7 @@ export default function UsersPage() {
         ...initialCreateForm,
         roleCode: roles[0]?.code || '',
       });
+      setCreateFormLastName('');
       setCreatePhoneCountryCode('+94');
       setCreatePhoneDropdownOpen(false);
 
@@ -632,6 +637,10 @@ export default function UsersPage() {
 
   const openEditModal = async (user: User) => {
     setEditingUser(user);
+    const parts = (user.fullName || '').trim().split(/\s+/).filter(Boolean);
+    const first = parts[0] ?? '';
+    const last = parts.slice(1).join(' ');
+    setEditFormLastName(last);
     let phone = (user.phone || '').trim();
     const matched = [...COUNTRY_CODES].sort((a, b) => b.code.length - a.code.length).find((c) => phone.startsWith(c.code));
     if (matched) {
@@ -648,7 +657,7 @@ export default function UsersPage() {
       setEditPhoneCountryCode('+94');
     }
     setEditForm({
-      fullName: user.fullName,
+      fullName: first,
       username: user.username || '',
       email: user.email,
       phone,
@@ -680,6 +689,7 @@ export default function UsersPage() {
   const closeEditModal = () => {
     setEditingUser(null);
     setEditForm(initialEditForm);
+    setEditFormLastName('');
     setEditFieldErrors({});
   };
 
@@ -688,8 +698,8 @@ export default function UsersPage() {
 
     if (!editingUser) return;
 
-    const fieldErrors = validateEditForm(editForm);
-    if (Object.keys(fieldErrors).length > 0) {
+    const fieldErrors = validateEditForm(editForm, editFormLastName);
+    if (Object.values(fieldErrors).some(Boolean)) {
       setEditFieldErrors(fieldErrors);
       setError('Please fix the errors below.');
       return;
@@ -702,8 +712,10 @@ export default function UsersPage() {
       setEditingSave(true);
       setSuccess('');
 
+      const fullName = `${(editForm.fullName ?? '').trim()} ${editFormLastName.trim()}`.trim();
       await updateUser(editingUser.id, {
         ...editForm,
+        fullName: fullName || editForm.fullName,
         phone: editForm.phone?.trim() ? editForm.phone : undefined,
       });
 
@@ -860,11 +872,23 @@ export default function UsersPage() {
                   Last Name
                 </label>
                 <input
-                  name="lastNameDummy"
-                  value=""
-                  readOnly
-                  className="w-full rounded-2xl border border-slate-800 bg-slate-950 px-4 py-3 text-sm text-slate-500"
-                  placeholder="(Optional in this version)"
+                  name="lastName"
+                  value={createFormLastName}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setCreateFormLastName(value);
+                    const combinedName = `${createForm.fullName.trim()} ${value.trim()}`.trim() || createForm.fullName.trim();
+                    const fieldErrors = validateCreateForm(
+                      { ...createForm, fullName: combinedName || createForm.fullName },
+                      value,
+                    );
+                    setCreateFieldErrors((prev) => ({
+                      ...prev,
+                      fullName: fieldErrors.fullName ?? '',
+                    }));
+                  }}
+                  className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                  placeholder="(Optional)"
                 />
               </div>
 
@@ -1214,7 +1238,7 @@ export default function UsersPage() {
 
               <form onSubmit={handleEditUser} className="mt-6 grid gap-4 md:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-sm font-medium">Full Name</label>
+                  <label className="mb-2 block text-sm font-medium">First Name</label>
                   <input
                     name="fullName"
                     value={editForm.fullName || ''}
@@ -1222,10 +1246,27 @@ export default function UsersPage() {
                     className={`w-full rounded-2xl border bg-slate-950 px-4 py-3 outline-none ${
                       editFieldErrors.fullName ? 'border-red-500 focus:border-red-500' : 'border-slate-700 focus:border-emerald-500'
                     }`}
+                    placeholder="Enter first name"
                   />
                   {editFieldErrors.fullName && (
                     <p className="mt-1 text-xs text-red-400">{editFieldErrors.fullName}</p>
                   )}
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium">Last Name</label>
+                  <input
+                    name="lastName"
+                    value={editFormLastName}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setEditFormLastName(value);
+                      const fieldErrors = validateEditForm(editForm, value);
+                      setEditFieldErrors((prev) => ({ ...prev, fullName: fieldErrors.fullName ?? '' }));
+                    }}
+                    className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none focus:border-emerald-500"
+                    placeholder="(Optional)"
+                  />
                 </div>
 
                 <div>
