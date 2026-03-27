@@ -22,3 +22,7 @@ export async function updateShop(
   const response = await api.patch(`/shops/${id}`, payload);
   return response.data;
 }
+
+export async function deleteShop(id: string): Promise<void> {
+  await api.delete(`/shops/${id}`);
+}

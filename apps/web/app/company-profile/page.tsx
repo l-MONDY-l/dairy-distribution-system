@@ -20,8 +20,7 @@ export default async function CompanyProfilePage() {
     <AppLayout>
       <div className="space-y-6">
         <div>
-          <p className="text-sm uppercase tracking-[0.2em] text-emerald-400">Admin Module</p>
-          <h1 className="mt-1 text-2xl font-bold">Company Profile</h1>
+          <h1 className="text-2xl font-bold">Company Profile</h1>
           <p className="mt-1 text-sm text-slate-400">
             Master configuration for dairy manufacturing and distribution company details.
           </p>

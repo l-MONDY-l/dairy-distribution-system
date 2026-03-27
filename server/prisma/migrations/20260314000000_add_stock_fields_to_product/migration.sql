@@ -1,0 +1,9 @@
+-- AlterTable
+ALTER TABLE "products" ADD COLUMN "description" TEXT;
+ALTER TABLE "products" ADD COLUMN "imageUrl" TEXT;
+ALTER TABLE "products" ADD COLUMN "agentPrice" DECIMAL(12,2);
+ALTER TABLE "products" ADD COLUMN "specialDiscount" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "products" ADD COLUMN "quantity" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "products" ADD COLUMN "soldQty" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "products" ADD COLUMN "remainingQty" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "products" ADD COLUMN "expiryDate" TIMESTAMP(3);

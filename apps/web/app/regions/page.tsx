@@ -1226,9 +1226,6 @@ export default function RegionsPage() {
       <div className="space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-sm uppercase tracking-[0.2em] text-emerald-400">
-              Admin Module
-            </p>
             <h1 className="mt-1 text-2xl font-bold">Territory And Region Management</h1>
             <p className="mt-1 text-sm text-slate-400">
               Manage districts and cities used for assignments.

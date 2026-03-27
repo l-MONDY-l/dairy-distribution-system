@@ -76,9 +76,6 @@ export default function ProfilePage() {
     <AppLayout>
       <div className="space-y-6">
         <div>
-          <p className="text-sm uppercase tracking-[0.2em] text-emerald-400">
-            Admin Module
-          </p>
           <h1 className="mt-1 text-2xl font-bold">Profile</h1>
           <p className="mt-1 text-sm text-slate-400">
             View and edit your own account details.

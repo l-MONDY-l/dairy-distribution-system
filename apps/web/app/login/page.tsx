@@ -27,7 +27,8 @@ export default function LoginPage() {
     if (isAuthenticated()) {
       router.replace('/dashboard');
     }
-  }, [router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onSubmit = async (data: LoginFormData) => {
     try {

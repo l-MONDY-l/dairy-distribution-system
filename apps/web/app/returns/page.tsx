@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import AppLayout from '@/components/layout/app-layout';
 import { getShops } from '@/lib/shops-api';
 import { getAgents } from '@/lib/agents-api';
@@ -59,6 +59,8 @@ export default function ReturnsPage() {
     useState<ReturnStatusType | ''>('');
   const [filterFrom, setFilterFrom] = useState('');
   const [filterTo, setFilterTo] = useState('');
+
+  const returnLogsRef = useRef<HTMLDivElement>(null);
 
   const shopOptions = useMemo(
     () =>
@@ -209,6 +211,7 @@ export default function ReturnsPage() {
       setItems([emptyItem]);
 
       await loadData();
+      returnLogsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Failed to create return.');
     } finally {
@@ -298,9 +301,6 @@ export default function ReturnsPage() {
     <AppLayout>
       <div className="space-y-6">
         <div>
-          <p className="text-sm uppercase tracking-[0.2em] text-emerald-400">
-            Admin Module
-          </p>
           <h1 className="mt-1 text-2xl font-bold">Return Stock Management</h1>
           <p className="mt-1 text-sm text-slate-400">
             Log and approve bottle returns by shop, agent, and driver.
@@ -473,7 +473,7 @@ export default function ReturnsPage() {
             </form>
           </div>
 
-          <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6 xl:col-span-2">
+          <div ref={returnLogsRef} className="rounded-3xl border border-slate-800 bg-slate-900 p-6 xl:col-span-2">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold">Return Logs</h2>

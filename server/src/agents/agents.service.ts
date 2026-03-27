@@ -13,13 +13,90 @@ export class AgentsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll() {
-    return this.prisma.agentProfile.findMany({
+    const agents = await this.prisma.agentProfile.findMany({
       include: {
         user: { include: { role: true } },
         region: true,
+        cityAssignments: {
+          include: { city: true },
+        },
+        townAssignments: {
+          include: {
+            town: {
+              include: { city: true },
+            },
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    if (!agents.length) {
+      return agents;
+    }
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const statsOrders = await this.prisma.order.findMany({
+      where: {
+        agentId: { in: agents.map((a) => a.id) },
+        NOT: {
+          notes: {
+            startsWith: '[CLIENT]',
+          },
+        },
+        orderedAt: {
+          gte: monthStart,
+        },
+      },
+      select: {
+        agentId: true,
+        grandTotal: true,
+        items: {
+          select: {
+            qty: true,
+          },
+        },
+      },
+    });
+
+    const statsMap = new Map<
+      string,
+      { count: number; total: number; qty: number }
+    >();
+    for (const order of statsOrders) {
+      if (!order.agentId) continue;
+      const existing =
+        statsMap.get(order.agentId) ?? { count: 0, total: 0, qty: 0 };
+      const orderTotal = Number(order.grandTotal ?? 0);
+      const orderQty = order.items.reduce((sum, item) => sum + item.qty, 0);
+      statsMap.set(order.agentId, {
+        count: existing.count + 1,
+        total: existing.total + orderTotal,
+        qty: existing.qty + orderQty,
+      });
+    }
+
+    const shopCounts = await this.prisma.shop.groupBy({
+      by: ['assignedAgentId'],
+      where: { assignedAgentId: { in: agents.map((a) => a.id) } },
+      _count: { id: true },
+    });
+    const shopCountMap = new Map<string, number>();
+    for (const row of shopCounts) {
+      if (row.assignedAgentId) shopCountMap.set(row.assignedAgentId, row._count.id);
+    }
+
+    return agents.map((agent) => ({
+      ...agent,
+      ordersAssigned: statsMap.get(agent.id)?.count ?? 0,
+      currentSales: statsMap.get(agent.id)
+        ? statsMap.get(agent.id)!.total.toString()
+        : '0',
+      currentSalesQty: statsMap.get(agent.id)?.qty ?? 0,
+      registeredClientsCount: shopCountMap.get(agent.id) ?? 0,
+    }));
   }
 
   async getAvailableUsers() {
@@ -39,6 +116,16 @@ export class AgentsService {
       include: {
         user: { include: { role: true } },
         region: true,
+        cityAssignments: {
+          include: { city: true },
+        },
+        townAssignments: {
+          include: {
+            town: {
+              include: { city: true },
+            },
+          },
+        },
       },
     });
 
@@ -87,6 +174,16 @@ export class AgentsService {
       include: {
         user: { include: { role: true } },
         region: true,
+        cityAssignments: {
+          include: { city: true },
+        },
+        townAssignments: {
+          include: {
+            town: {
+              include: { city: true },
+            },
+          },
+        },
       },
     });
   }
@@ -124,6 +221,16 @@ export class AgentsService {
       include: {
         user: { include: { role: true } },
         region: true,
+        cityAssignments: {
+          include: { city: true },
+        },
+        townAssignments: {
+          include: {
+            town: {
+              include: { city: true },
+            },
+          },
+        },
       },
     });
   }
@@ -143,6 +250,16 @@ export class AgentsService {
       include: {
         user: { include: { role: true } },
         region: true,
+        cityAssignments: {
+          include: { city: true },
+        },
+        townAssignments: {
+          include: {
+            town: {
+              include: { city: true },
+            },
+          },
+        },
       },
     });
   }

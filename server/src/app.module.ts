@@ -5,6 +5,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { RolesModule } from './roles/roles.module';
 import { ProductsModule } from './products/products.module';
+import { StockBatchesModule } from './stock-batches/stock-batches.module';
 import { ShopsModule } from './shops/shops.module';
 import { RegionsModule } from './regions/regions.module';
 import { AgentsModule } from './agents/agents.module';
@@ -16,6 +17,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { DiscountsModule } from './discounts/discounts.module';
 import { PermissionsModule } from './permissions/permissions.module';
 import { CompanyModule } from './company/company.module';
+import { UploadsModule } from './uploads/uploads.module';
 import { AdminController } from './admin/admin.controller';
 
 @Module({
@@ -28,6 +30,7 @@ import { AdminController } from './admin/admin.controller';
     UsersModule,
     RolesModule,
     ProductsModule,
+    StockBatchesModule,
     ShopsModule,
     RegionsModule,
     AgentsModule,
@@ -39,6 +42,7 @@ import { AdminController } from './admin/admin.controller';
     DiscountsModule,
     PermissionsModule,
     CompanyModule,
+    UploadsModule,
   ],
   controllers: [AdminController],
 })

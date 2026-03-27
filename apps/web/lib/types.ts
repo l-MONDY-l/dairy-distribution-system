@@ -32,6 +32,18 @@ export type CreateUserPayload = {
   roleCode: string;
 };
 
+export type UserStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+
+export type UpdateUserPayload = {
+  fullName?: string;
+  username?: string;
+  email?: string;
+  phone?: string;
+  roleCode?: string;
+  status?: UserStatus;
+  password?: string;
+};
+
 export type Product = {
   id: string;
   name: string;
@@ -41,15 +53,33 @@ export type Product = {
   price: string;
   status: boolean;
   createdAt: string;
+  description?: string | null;
+  imageUrl?: string | null;
+  agentPrice?: string | null;
+  specialDiscount?: boolean;
+  quantity?: number;
+  soldQty?: number;
+  remainingQty?: number;
+  expiryDate?: string | null;
+  stockCreateDate?: string | null;
 };
 
 export type CreateProductPayload = {
   name: string;
-  sku: string;
-  unitType: string;
+  sku?: string;
+  unitType?: string;
   unitVolume?: string;
-  price: string;
+  price?: string;
   status?: boolean;
+  description?: string;
+  imageUrl?: string;
+  agentPrice?: string;
+  specialDiscount?: boolean;
+  quantity?: number;
+  soldQty?: number;
+  remainingQty?: number;
+  expiryDate?: string;
+  stockCreateDate?: string;
 };
 
 export type UpdateProductPayload = {
@@ -59,6 +89,61 @@ export type UpdateProductPayload = {
   unitVolume?: string;
   price?: string;
   status?: boolean;
+  description?: string;
+  imageUrl?: string;
+  agentPrice?: string;
+  specialDiscount?: boolean;
+  quantity?: number;
+  soldQty?: number;
+  remainingQty?: number;
+  expiryDate?: string;
+  stockCreateDate?: string;
+};
+
+export type StockBatch = {
+  id: string;
+  stockNumber?: number | null;
+  productId: string;
+  unitType: string;
+  price: string;
+  agentPrice?: string | null;
+  retailPrice?: string | null;
+  specialDiscount: boolean;
+  quantity: number;
+  soldQty: number;
+  remainingQty: number;
+  stockCreateDate: string;
+  expiryDate?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  product: Product;
+};
+
+export type CreateStockBatchPayload = {
+  productId: string;
+  unitType: string;
+  price: string;
+  agentPrice?: string;
+  retailPrice?: string;
+  specialDiscount?: boolean;
+  quantity?: number;
+  soldQty?: number;
+  remainingQty?: number;
+  stockCreateDate?: string;
+  expiryDate?: string;
+};
+
+export type UpdateStockBatchPayload = {
+  unitType?: string;
+  price?: string;
+  agentPrice?: string;
+  retailPrice?: string;
+  specialDiscount?: boolean;
+  quantity?: number;
+  soldQty?: number;
+  remainingQty?: number;
+  stockCreateDate?: string;
+  expiryDate?: string;
 };
 
 export type Region = {
@@ -116,12 +201,35 @@ export type Shop = {
   email?: string | null;
   address?: string | null;
   website?: string | null;
+  regionId: string;
+  cityId: string;
+  townId?: string | null;
   notifySms: boolean;
   notifyEmail: boolean;
   status: ShopStatus;
   createdAt: string;
   region: Region;
   city: City;
+  town?: Town | null;
+  assignedAgent?: { id: string; user: { fullName: string } } | null;
+  assignedDriver?: { id: string; user: { fullName: string } } | null;
+  legalBusinessName?: string | null;
+  businessType?: string | null;
+  registrationNo?: string | null;
+  taxId?: string | null;
+  certificateOfRegistrationUrl?: string | null;
+  ownerIdFrontUrl?: string | null;
+  ownerIdBackUrl?: string | null;
+  shopFrontPhotoUrl?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  whatsappNumber?: string | null;
+  nationalId?: string | null;
+  ownerPhone?: string | null;
+  bankAccountName?: string | null;
+  bankAccountNumber?: string | null;
+  bankName?: string | null;
+  branch?: string | null;
 };
 
 export type AgentProfile = {
@@ -133,6 +241,12 @@ export type AgentProfile = {
   createdAt: string;
   user: User;
   region: Region;
+  cityAssignments?: { id: string; city: City }[];
+  townAssignments?: { id: string; town: Town & { city: City } }[];
+  ordersAssigned?: number;
+  currentSales?: string;
+  currentSalesQty?: number;
+  registeredClientsCount?: number;
 };
 
 export type CreateAgentPayload = {
@@ -188,6 +302,7 @@ export type UpdateDriverPayload = {
 
 export type OrderItemInput = {
   productId: string;
+  stockBatchId: string;
   qty: number;
 };
 
@@ -214,6 +329,8 @@ export type Order = {
   shop: Shop;
   region: Region;
   city: City;
+  placedByUser?: User;
+  lastActionByUser?: User | null;
   agent?: AgentProfile | null;
   driver?: DriverProfile | null;
   dispatchStatus:
@@ -229,6 +346,7 @@ export type Order = {
     unitPrice: string;
     lineTotal: string;
     product: Product;
+    stockBatch?: StockBatch | null;
   }[];
 };
 
@@ -236,6 +354,7 @@ export type CreateOrderPayload = {
   shopId: string;
   placedByUserId: string;
   agentId?: string;
+  driverId?: string;
   paymentType: 'CASH' | 'BANK_TRANSFER' | 'ONLINE';
   notes?: string;
   items: OrderItemInput[];
@@ -329,8 +448,26 @@ export type CreateShopPayload = {
   website?: string;
   regionId: string;
   cityId: string;
+  townId?: string;
   notifySms?: boolean;
   notifyEmail?: boolean;
+  legalBusinessName?: string;
+  businessType?: string;
+  registrationNo?: string;
+  taxId?: string;
+  certificateOfRegistrationUrl?: string;
+  ownerIdFrontUrl?: string;
+  ownerIdBackUrl?: string;
+  shopFrontPhotoUrl?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  whatsappNumber?: string;
+  nationalId?: string;
+  ownerPhone?: string;
+  bankAccountName?: string;
+  bankAccountNumber?: string;
+  bankName?: string;
+  branch?: string;
 };
 
 export type UpdateShopPayload = {
@@ -343,7 +480,25 @@ export type UpdateShopPayload = {
   website?: string;
   regionId?: string;
   cityId?: string;
+  townId?: string;
   notifySms?: boolean;
   notifyEmail?: boolean;
   status?: ShopStatus;
+  legalBusinessName?: string;
+  businessType?: string;
+  registrationNo?: string;
+  taxId?: string;
+  certificateOfRegistrationUrl?: string;
+  ownerIdFrontUrl?: string;
+  ownerIdBackUrl?: string;
+  shopFrontPhotoUrl?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  whatsappNumber?: string;
+  nationalId?: string;
+  ownerPhone?: string;
+  bankAccountName?: string;
+  bankAccountNumber?: string;
+  bankName?: string;
+  branch?: string;
 };

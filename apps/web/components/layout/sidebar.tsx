@@ -30,36 +30,30 @@ const menu = [
     path: '/regions',
   },
   { name: 'Client', icon: ShoppingCart, path: '/shops' },
+  { name: 'Manufacture', icon: Package, path: '/manifacture' },
+  { name: 'Stock', icon: Package, path: '/stock' },
   {
-    name: 'Distribution Agent Management',
-    icon: Users,
-    key: 'agent-management',
+    name: 'Orders',
+    icon: Boxes,
+    key: 'orders',
     children: [
-      { name: 'Agent profiles & regions', path: '/agents' },
-      { name: 'Stock & return tracking', path: '/returns' },
-      { name: 'Sales targets & rewards', path: '/reports/agents' },
+      { name: 'Agent orders', path: '/orders' },
+      { name: 'Client orders', path: '/client-orders' },
     ],
   },
+  { name: 'Agent Control', icon: Users, path: '/agents' },
   {
-    name: 'Distribution Driver Management',
+    name: 'Driver Control',
     icon: Truck,
     key: 'driver-management',
     children: [
       { name: 'Driver accounts & routes', path: '/drivers' },
       { name: 'Fuel quota & trips', path: '/drivers' },
-      { name: 'Dispatch & pickups', path: '/orders' },
+      { name: 'Dispatch & pickups', path: '/drivers/dispatch-pickups' },
     ],
   },
-  {
-    name: 'Order Management',
-    icon: Boxes,
-    key: 'order-management',
-    children: [
-      { name: 'All orders & filters', path: '/orders' },
-      { name: 'Approve / reject orders', path: '/orders' },
-      { name: 'Assign to drivers', path: '/orders' },
-    ],
-  },
+  { name: 'Credits', icon: CreditCard, path: '/credits' },
+  { name: 'Accounts', icon: CreditCard, path: '/accounts' },
   {
     name: 'Return Stock Management',
     icon: Boxes,
@@ -142,7 +136,6 @@ export default function Sidebar() {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     'agent-management': false,
     'driver-management': false,
-    'order-management': false,
     'return-management': false,
     'sales-target': false,
     'fuel-trip': false,
@@ -151,6 +144,7 @@ export default function Sidebar() {
     'system-settings': false,
     'activity-logs': false,
     discounts: false,
+    orders: false,
   });
 
   useEffect(() => {
@@ -179,6 +173,27 @@ export default function Sidebar() {
 
   const isActivePath = (path: string) =>
     pathname === path || pathname.startsWith(path + '/');
+
+  // Ensure the group stays open when one of its children is the active route
+  useEffect(() => {
+    setOpenGroups((prev) => {
+      const next = { ...prev };
+
+      for (const item of menu) {
+        if ('key' in item && item.key && 'children' in item && item.children) {
+          const anyChildActive = item.children.some((child) =>
+            child.path ? isActivePath(child.path) : false,
+          );
+
+          if (anyChildActive) {
+            next[item.key] = true;
+          }
+        }
+      }
+
+      return next;
+    });
+  }, [pathname]);
 
   return (
     <aside className="hidden w-72 border-r border-slate-800 bg-slate-900 p-6 lg:block">
@@ -226,14 +241,7 @@ export default function Sidebar() {
 
             return (
               <div key={item.key} className="space-y-1">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setOpenGroups((prev) => ({
-                      ...prev,
-                      [item.key]: !isOpen,
-                    }))
-                  }
+                <div
                   className={`flex w-full items-center justify-between rounded-xl px-4 py-3 text-left ${
                     anyChildActive || isOpen
                       ? 'bg-emerald-500 text-black'
@@ -244,13 +252,28 @@ export default function Sidebar() {
                     <Icon size={18} />
                     {item.name}
                   </span>
-                  <ChevronDown
-                    size={16}
-                    className={`transition-transform ${
-                      isOpen ? 'rotate-180' : ''
-                    }`}
-                  />
-                </button>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setOpenGroups((prev) => ({
+                        ...prev,
+                        [item.key]: !isOpen,
+                      }));
+                    }}
+                    className="rounded p-1 hover:bg-emerald-600/20"
+                    aria-label={
+                      isOpen ? `Collapse ${item.name}` : `Expand ${item.name}`
+                    }
+                  >
+                    <ChevronDown
+                      size={16}
+                      className={`transition-transform ${
+                        isOpen ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+                </div>
 
                 {isOpen && (
                   <div className="ml-8 space-y-1">

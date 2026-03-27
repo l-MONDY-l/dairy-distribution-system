@@ -7,6 +7,7 @@ import {
   DispatchStatus,
   DeliveryStatus,
   OrderStatus,
+  PaymentType,
   Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -27,129 +28,204 @@ export class OrdersService {
       throw new BadRequestException('Order must have at least one item');
     }
 
-    const shop = await this.prisma.shop.findUnique({
-      where: { id: dto.shopId },
-      include: { region: true, city: true },
-    });
+    return this.prisma.$transaction(async (tx) => {
+      const shop = await tx.shop.findUnique({
+        where: { id: dto.shopId },
+        include: { region: true, city: true },
+      });
+      if (!shop) throw new NotFoundException('Shop not found');
 
-    if (!shop) throw new NotFoundException('Shop not found');
+      const user = await tx.user.findUnique({
+        where: { id: dto.placedByUserId },
+      });
+      if (!user) throw new NotFoundException('User not found');
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: dto.placedByUserId },
-    });
-    if (!user) throw new NotFoundException('User not found');
+      let agentId: string | undefined = dto.agentId;
+      if (!agentId && shop.assignedAgentId) {
+        agentId = shop.assignedAgentId;
+      }
 
-    let agentId: string | undefined = dto.agentId;
-    if (!agentId && shop.assignedAgentId) {
-      agentId = shop.assignedAgentId;
-    }
+      let driverId: string | undefined = dto.driverId;
+      if (driverId) {
+        const driver = await tx.driverProfile.findUnique({
+          where: { id: driverId },
+        });
+        if (!driver) throw new NotFoundException('Driver not found');
+      }
 
-    const products = await this.prisma.product.findMany({
-      where: { id: { in: dto.items.map((i) => i.productId) } },
-    });
+      const batches = await tx.stockBatch.findMany({
+        where: { id: { in: dto.items.map((i) => i.stockBatchId) } },
+        include: { product: true },
+      });
+      if (batches.length !== dto.items.length) {
+        throw new BadRequestException('One or more stock batches not found');
+      }
 
-    if (products.length !== dto.items.length) {
-      throw new BadRequestException('One or more products not found');
-    }
+      // Validate stock on selected batch only
+      for (const item of dto.items) {
+        const batch = batches.find((b) => b.id === item.stockBatchId);
+        if (!batch) {
+          throw new BadRequestException('Stock batch not found for item');
+        }
+        if (item.productId !== batch.productId) {
+          throw new BadRequestException(
+            'Product does not match selected stock batch',
+          );
+        }
+        const available = batch.remainingQty ?? 0;
+        if (item.qty > available) {
+          throw new BadRequestException(
+            `Not enough stock for ${batch.product.name}. Requested ${item.qty}, available ${available}.`,
+          );
+        }
+      }
 
-    let subtotal = new Prisma.Decimal(0);
+      let subtotal = new Prisma.Decimal(0);
+      const itemsData = dto.items.map((item) => {
+        const batch = batches.find((b) => b.id === item.stockBatchId)!;
+        // Use agent price for accounting when available, otherwise fall back to manufacture cost
+        const unitPrice = batch.agentPrice ?? batch.price;
+        const lineTotal = unitPrice.mul(item.qty);
+        subtotal = subtotal.add(lineTotal);
+        return {
+          productId: batch.productId,
+          stockBatchId: batch.id,
+          qty: item.qty,
+          unitPrice,
+          lineTotal,
+        };
+      });
 
-    const itemsData = dto.items.map((item) => {
-      const product = products.find((p) => p.id === item.productId)!;
-      const unitPrice = product.price;
-      const lineTotal = unitPrice.mul(item.qty);
-      subtotal = subtotal.add(lineTotal);
-      return {
-        productId: product.id,
-        qty: item.qty,
-        unitPrice,
-        lineTotal,
-      };
-    });
+      const discountTotal = new Prisma.Decimal(0);
+      const taxTotal = new Prisma.Decimal(0);
+      const grandTotal = subtotal.sub(discountTotal).add(taxTotal);
 
-    const discountTotal = new Prisma.Decimal(0);
-    const taxTotal = new Prisma.Decimal(0);
-    const grandTotal = subtotal.sub(discountTotal).add(taxTotal);
+      const orderNo = await this.generateOrderNo();
 
-    const orderNo = await this.generateOrderNo();
-
-    const order = await this.prisma.order.create({
-      data: {
-        orderNo,
-        shopId: shop.id,
-        placedByUserId: user.id,
-        agentId,
-        regionId: shop.regionId,
-        cityId: shop.cityId,
-        paymentType: dto.paymentType,
-        subtotal,
-        discountTotal,
-        taxTotal,
-        grandTotal,
-        notes: dto.notes,
-        items: {
-          create: itemsData,
-        },
-      },
-      include: {
-        shop: true,
-        region: true,
-        city: true,
-        agent: {
-          include: {
-            user: true,
+      const order = await tx.order.create({
+        data: {
+          orderNo,
+          shopId: shop.id,
+          placedByUserId: user.id,
+          lastActionByUserId: user.id,
+          agentId,
+          driverId,
+          regionId: shop.regionId,
+          cityId: shop.cityId,
+          paymentType: dto.paymentType,
+          subtotal,
+          discountTotal,
+          taxTotal,
+          grandTotal,
+          notes: dto.notes,
+          items: {
+            create: itemsData,
           },
         },
-        items: {
-          include: {
-            product: true,
-          },
+        include: {
+          shop: true,
+          region: true,
+          city: true,
+          agent: { include: { user: true } },
+          driver: { include: { user: true } },
+          items: { include: { product: true, stockBatch: true } },
         },
-      },
+      });
+
+      // After order is created, deduct from each selected stock batch:
+      // decrease remainingQty, increase soldQty.
+      for (const item of dto.items) {
+        const batch = batches.find((b) => b.id === item.stockBatchId)!;
+        await tx.stockBatch.update({
+          where: { id: batch.id },
+          data: {
+            remainingQty: {
+              decrement: item.qty,
+            },
+            soldQty: {
+              increment: item.qty,
+            },
+          },
+        });
+      }
+
+      const invoiceCount = await tx.invoice.count();
+      const nextInvoice = invoiceCount + 1;
+      const invoiceNo = `INV-${nextInvoice.toString().padStart(6, '0')}`;
+
+      await tx.invoice.create({
+        data: {
+          invoiceNo,
+          orderId: order.id,
+          shopId: order.shopId,
+          subtotal: order.subtotal,
+          discountTotal: order.discountTotal,
+          taxTotal: order.taxTotal,
+          total: order.grandTotal,
+        },
+      });
+
+      return order;
     });
-
-    const invoiceCount = await this.prisma.invoice.count();
-    const nextInvoice = invoiceCount + 1;
-    const invoiceNo = `INV-${nextInvoice.toString().padStart(6, '0')}`;
-
-    await this.prisma.invoice.create({
-      data: {
-        invoiceNo,
-        orderId: order.id,
-        shopId: order.shopId,
-        subtotal: order.subtotal,
-        discountTotal: order.discountTotal,
-        taxTotal: order.taxTotal,
-        total: order.grandTotal,
-      },
-    });
-
-    return order;
   }
 
   async findAll() {
     return this.prisma.order.findMany({
       include: {
-        shop: true,
+        shop: { include: { city: true, town: true } },
         region: true,
         city: true,
-        agent: { include: { user: true } },
-        items: { include: { product: true } },
+        placedByUser: true,
+        lastActionByUser: true,
+        agent: { include: { user: true, region: true } },
+        driver: { include: { user: true, region: true } },
+        items: { include: { product: true, stockBatch: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  // Client orders: same physical table, but logically separated by a notes tag.
+  // Any order created via /client-orders will have notes starting with "[CLIENT]".
+  // This method only returns those, and strips the tag before returning to callers.
+  async findAllClient() {
+    const orders = await this.prisma.order.findMany({
+      where: {
+        notes: {
+          startsWith: '[CLIENT]',
+        },
+      },
+      include: {
+        shop: { include: { city: true, town: true } },
+        region: true,
+        city: true,
+        placedByUser: true,
+        lastActionByUser: true,
+        agent: { include: { user: true, region: true } },
+        driver: { include: { user: true, region: true } },
+        items: { include: { product: true, stockBatch: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return orders.map((o) => ({
+      ...o,
+      notes: o.notes?.replace(/^\[CLIENT]\s*/, '') ?? null,
+    }));
   }
 
   async findOne(id: string) {
     const order = await this.prisma.order.findUnique({
       where: { id },
       include: {
-        shop: true,
+        shop: { include: { city: true, town: true } },
         region: true,
         city: true,
-        agent: { include: { user: true } },
-        driver: { include: { user: true } },
-        items: { include: { product: true } },
+        placedByUser: true,
+        lastActionByUser: true,
+        agent: { include: { user: true, region: true } },
+        driver: { include: { user: true, region: true } },
+        items: { include: { product: true, stockBatch: true } },
       },
     });
     if (!order) throw new NotFoundException('Order not found');
@@ -158,7 +234,14 @@ export class OrdersService {
 
   async update(
     id: string,
-    data: { orderStatus?: OrderStatus; notes?: string },
+    data: {
+      orderStatus?: OrderStatus;
+      notes?: string;
+      agentId?: string | null;
+      driverId?: string | null;
+      paymentType?: PaymentType;
+      actionUserId?: string | null;
+    },
   ) {
     const order = await this.prisma.order.findUnique({ where: { id } });
     if (!order) throw new NotFoundException('Order not found');
@@ -168,6 +251,12 @@ export class OrdersService {
       data: {
         ...(data.orderStatus != null && { orderStatus: data.orderStatus }),
         ...(data.notes !== undefined && { notes: data.notes }),
+        ...(data.agentId !== undefined && { agentId: data.agentId }),
+        ...(data.driverId !== undefined && { driverId: data.driverId }),
+        ...(data.paymentType !== undefined && {
+          paymentType: data.paymentType,
+        }),
+        ...(data.actionUserId && { lastActionByUserId: data.actionUserId }),
       },
       include: {
         shop: true,
@@ -181,12 +270,30 @@ export class OrdersService {
   }
 
   async remove(id: string) {
-    const order = await this.prisma.order.findUnique({ where: { id } });
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+      include: { items: true },
+    });
     if (!order) throw new NotFoundException('Order not found');
 
-    await this.prisma.invoice.deleteMany({ where: { orderId: id } });
-    await this.prisma.orderItem.deleteMany({ where: { orderId: id } });
-    await this.prisma.order.delete({ where: { id } });
+    // Reverse stock impact: add back qty to each batch used
+    await this.prisma.$transaction(async (tx) => {
+      for (const item of order.items) {
+        if (!item.stockBatchId) continue;
+        await tx.stockBatch.update({
+          where: { id: item.stockBatchId },
+          data: {
+            remainingQty: { increment: item.qty },
+            soldQty: { decrement: item.qty },
+          },
+        });
+      }
+
+      await tx.invoice.deleteMany({ where: { orderId: id } });
+      await tx.orderItem.deleteMany({ where: { orderId: id } });
+      await tx.order.delete({ where: { id } });
+    });
+
     return { deleted: true };
   }
 

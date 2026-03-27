@@ -21,6 +21,10 @@ export async function createOrder(
 export type UpdateOrderPayload = {
   orderStatus?: Order['orderStatus'];
   notes?: string;
+  agentId?: string | null;
+  driverId?: string | null;
+  paymentType?: 'CASH' | 'BANK_TRANSFER' | 'ONLINE';
+  performedByUserId?: string;
 };
 
 export async function updateOrder(

@@ -32,3 +32,7 @@ export async function updateProductStatus(
   const response = await api.patch(`/products/${id}/status`, { status });
   return response.data;
 }
+
+export async function deleteProduct(id: string): Promise<void> {
+  await api.delete(`/products/${id}`);
+}

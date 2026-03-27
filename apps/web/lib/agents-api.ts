@@ -11,6 +11,11 @@ export async function getAgents(): Promise<AgentProfile[]> {
   return response.data;
 }
 
+export async function getAgent(id: string): Promise<AgentProfile> {
+  const response = await api.get(`/agents/${id}`);
+  return response.data;
+}
+
 export async function getAvailableAgentUsers(): Promise<User[]> {
   const response = await api.get('/agents/available-users');
   return response.data;

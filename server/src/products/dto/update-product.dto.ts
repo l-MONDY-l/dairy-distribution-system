@@ -1,9 +1,12 @@
 import {
   IsBoolean,
+  IsInt,
   IsNumberString,
   IsOptional,
   IsString,
+  Min,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class UpdateProductDto {
   @IsOptional()
@@ -29,4 +32,46 @@ export class UpdateProductDto {
   @IsOptional()
   @IsBoolean()
   status?: boolean;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
+
+  @IsOptional()
+  @IsNumberString()
+  agentPrice?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  specialDiscount?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  quantity?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  soldQty?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  remainingQty?: number;
+
+  @IsOptional()
+  @IsString()
+  expiryDate?: string;
+
+  @IsOptional()
+  @IsString()
+  stockCreateDate?: string;
 }

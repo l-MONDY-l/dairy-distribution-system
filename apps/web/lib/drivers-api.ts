@@ -11,6 +11,11 @@ export async function getDrivers(): Promise<DriverProfile[]> {
   return response.data;
 }
 
+export async function getDriver(id: string): Promise<DriverProfile> {
+  const response = await api.get(`/drivers/${id}`);
+  return response.data;
+}
+
 export async function getAvailableDriverUsers(): Promise<User[]> {
   const response = await api.get('/drivers/available-users');
   return response.data;

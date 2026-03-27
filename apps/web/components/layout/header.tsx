@@ -39,7 +39,7 @@ export default function Header() {
 
   const logout = () => {
     clearAuth();
-    router.push('/login');
+    router.replace('/login');
   };
 
   const displayName = user?.fullName ?? 'System Admin';

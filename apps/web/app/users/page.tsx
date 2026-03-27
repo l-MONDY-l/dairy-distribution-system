@@ -365,11 +365,15 @@ export default function UsersPage() {
   const [editPhoneCountryCode, setEditPhoneCountryCode] = useState('+94');
   const [createPhoneDropdownOpen, setCreatePhoneDropdownOpen] = useState(false);
   const [editPhoneDropdownOpen, setEditPhoneDropdownOpen] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createCountrySearch, setCreateCountrySearch] = useState('');
   const [editCountrySearch, setEditCountrySearch] = useState('');
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [statusToggleUser, setStatusToggleUser] = useState<User | null>(null);
+  const [statusToggleLoading, setStatusToggleLoading] = useState(false);
+  const [editConfirmPassword, setEditConfirmPassword] = useState('');
 
   const sortedCountryCodes = useMemo(
     () => [...COUNTRY_CODES].sort((a, b) => a.country.localeCompare(b.country)),
@@ -414,10 +418,38 @@ export default function UsersPage() {
     [roles],
   );
 
-  const selectableRoles = useMemo(
-    () => sortedRoles.filter((r) => !/client/i.test(r.name)),
-    [sortedRoles],
-  );
+  const selectableRoles = useMemo(() => {
+    const base = sortedRoles.filter((r) => !/client/i.test(r.name));
+    const ensureCodes: { code: string; name: string }[] = [
+      { code: 'SYSTEM_ADMIN', name: 'Admin' },
+      { code: 'MANAGER', name: 'Manager' },
+      { code: 'MARKETING', name: 'Marketing' },
+      { code: 'AGENT', name: 'Agent' },
+      { code: 'DRIVER', name: 'Driver' },
+    ];
+
+    const existingCodes = new Set(base.map((r) => r.code));
+    const synthetic = ensureCodes
+      .filter((r) => !existingCodes.has(r.code))
+      .map((r, idx) => ({
+        id: `synthetic-${r.code}-${idx}`,
+        name: r.name,
+        code: r.code,
+        description: '',
+      }));
+
+    const combined = [...base, ...synthetic];
+    const order = ['SYSTEM_ADMIN', 'MANAGER', 'MARKETING', 'AGENT', 'DRIVER'];
+
+    return combined.sort((a, b) => {
+      const ia = order.indexOf(a.code);
+      const ib = order.indexOf(b.code);
+      const ra = ia === -1 ? Number.MAX_SAFE_INTEGER : ia;
+      const rb = ib === -1 ? Number.MAX_SAFE_INTEGER : ib;
+      if (ra !== rb) return ra - rb;
+      return a.name.localeCompare(b.name);
+    });
+  }, [sortedRoles]);
 
   const filteredUsers = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
@@ -626,6 +658,7 @@ export default function UsersPage() {
       setCreateFormLastName('');
       setCreatePhoneCountryCode('+94');
       setCreatePhoneDropdownOpen(false);
+      setCreateModalOpen(false);
 
       await loadData();
     } catch (err: any) {
@@ -664,6 +697,7 @@ export default function UsersPage() {
       roleCode: user.role?.code || '',
       status: user.status,
     });
+    setEditConfirmPassword('');
 
     // Load current permissions for this user's role so the panel reflects reality
     try {
@@ -690,6 +724,7 @@ export default function UsersPage() {
     setEditingUser(null);
     setEditForm(initialEditForm);
     setEditFormLastName('');
+    setEditConfirmPassword('');
     setEditFieldErrors({});
   };
 
@@ -698,7 +733,23 @@ export default function UsersPage() {
 
     if (!editingUser) return;
 
-    const fieldErrors = validateEditForm(editForm, editFormLastName);
+    const fieldErrors = { ...validateEditForm(editForm, editFormLastName) };
+    const newPassword = (editForm.password ?? '').trim();
+    if (newPassword) {
+      if (newPassword.length < 6) {
+        fieldErrors.password = 'Password must be at least 6 characters.';
+      } else if (
+        (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword))
+      ) {
+        fieldErrors.password =
+          'Password must include uppercase, lowercase and a special character.';
+      } else if (newPassword !== editConfirmPassword.trim()) {
+        fieldErrors.password = 'Passwords do not match.';
+      }
+    } else if (editConfirmPassword.trim()) {
+      fieldErrors.password = 'Enter new password in both fields to change it.';
+    }
+
     if (Object.values(fieldErrors).some(Boolean)) {
       setEditFieldErrors(fieldErrors);
       setError('Please fix the errors below.');
@@ -713,11 +764,15 @@ export default function UsersPage() {
       setSuccess('');
 
       const fullName = `${(editForm.fullName ?? '').trim()} ${editFormLastName.trim()}`.trim();
-      await updateUser(editingUser.id, {
+      const payload: UpdateUserPayload = {
         ...editForm,
         fullName: fullName || editForm.fullName,
         phone: editForm.phone?.trim() ? editForm.phone : undefined,
-      });
+      };
+      if (!newPassword) delete payload.password;
+      else payload.password = newPassword;
+
+      await updateUser(editingUser.id, payload);
 
       if (editForm.roleCode === 'SYSTEM_ADMIN' && adminRoleId) {
         await updateRolePermissions(adminRoleId, selectedPermissionIds);
@@ -737,19 +792,31 @@ export default function UsersPage() {
     }
   };
 
-  const handleStatusToggle = async (user: User) => {
+  const openStatusToggleConfirm = (user: User) => {
+    setStatusToggleUser(user);
+    setError('');
+    setSuccess('');
+  };
+
+  const handleConfirmStatusToggle = async () => {
+    if (!statusToggleUser) return;
+
     try {
+      setStatusToggleLoading(true);
       setError('');
       setSuccess('');
 
       const nextStatus: UserStatus =
-        user.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+        statusToggleUser.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
 
-      await updateUserStatus(user.id, nextStatus);
-      setSuccess(`User status changed to ${nextStatus}.`);
+      await updateUserStatus(statusToggleUser.id, nextStatus);
+      setSuccess(`User ${nextStatus === 'ACTIVE' ? 'activated' : 'disabled'} successfully.`);
+      setStatusToggleUser(null);
       await loadData();
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Failed to update status.');
+    } finally {
+      setStatusToggleLoading(false);
     }
   };
 
@@ -782,14 +849,59 @@ export default function UsersPage() {
   return (
     <AppLayout>
       <div className="space-y-6">
-        <div>
-          <p className="text-sm uppercase tracking-[0.2em] text-emerald-400">
-            Admin Module
-          </p>
-          <h1 className="mt-1 text-2xl font-bold">Users Management</h1>
-          <p className="mt-1 text-sm text-slate-400">
-            Create, edit, and control access for platform users.
-          </p>
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h1 className="mt-1 text-2xl font-bold">Users Management</h1>
+              <p className="mt-1 text-sm text-slate-400">
+                Create, edit, and control access for platform users.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                // Pre-select role in the form based on active role tab when opening
+                setCreateForm((prev) => {
+                  const fallback =
+                    prev.roleCode || roles[0]?.code || 'SYSTEM_ADMIN';
+                  if (roleFilter === 'all') {
+                    return { ...prev, roleCode: fallback };
+                  }
+                  return { ...prev, roleCode: roleFilter };
+                });
+                setCreateModalOpen(true);
+              }}
+              className="rounded-2xl bg-emerald-500 px-6 py-3 font-semibold text-slate-950 hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+            >
+              Create User
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            {[
+              { label: 'All users', value: 'all' },
+              { label: 'Admin', value: 'SYSTEM_ADMIN' },
+              { label: 'Manager', value: 'MANAGER' },
+              { label: 'Marketing', value: 'MARKETING' },
+              { label: 'Agent', value: 'AGENT' },
+              { label: 'Driver', value: 'DRIVER' },
+            ].map((tab) => {
+              const isActive = roleFilter === tab.value;
+              return (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => setRoleFilter(tab.value)}
+                  className={`rounded-2xl border p-3 text-left text-xs font-medium uppercase tracking-wider transition focus:outline-none focus:ring-2 focus:ring-emerald-500/50 ${
+                    isActive
+                      ? 'border-emerald-500/60 bg-emerald-500/15 ring-2 ring-emerald-500/30 text-emerald-100'
+                      : 'border-slate-700 bg-slate-800/50 text-slate-300 hover:border-slate-600 hover:bg-slate-800'
+                  }`}
+                >
+                  <span className="block text-[11px]">{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {error && (
@@ -804,14 +916,29 @@ export default function UsersPage() {
           </div>
         )}
 
-        <div className="grid gap-6 xl:grid-cols-3">
-          <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6 xl:col-span-1">
-            <h2 className="text-lg font-semibold">Create New User</h2>
-            <p className="mt-1 text-sm text-slate-400">
-              Add admin, agent, driver, or shop portal user.
-            </p>
-
-            <form onSubmit={handleCreateUser} className="mt-6 grid gap-4 md:grid-cols-2">
+        {createModalOpen ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+            onClick={() => !saving && setCreateModalOpen(false)}
+          >
+            <div
+              className="max-h-[90vh] w-full max-w-[96vw] overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-4 shadow-xl sm:p-6 md:max-w-[90vw] lg:max-w-4xl xl:max-w-5xl 2xl:max-w-6xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-slate-700 pb-4">
+                <h3 className="text-lg font-semibold">Create New User</h3>
+                <button
+                  type="button"
+                  onClick={() => !saving && setCreateModalOpen(false)}
+                  className="rounded-xl border border-slate-600 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 disabled:opacity-50"
+                >
+                  Close
+                </button>
+              </div>
+              <p className="mt-2 text-sm text-slate-400">
+                Add admin, agent, driver, or shop portal user.
+              </p>
+              <form onSubmit={handleCreateUser} className="mt-6 grid gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-2 block text-sm font-medium">
                   Email <span className="text-red-400">*</span>
@@ -1080,10 +1207,12 @@ export default function UsersPage() {
                   {saving ? 'Creating...' : 'Create User'}
                 </button>
               </div>
-            </form>
+              </form>
+            </div>
           </div>
+        ) : null}
 
-          <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6 xl:col-span-2">
+        <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <h2 className="text-lg font-semibold">User Directory</h2>
@@ -1107,18 +1236,7 @@ export default function UsersPage() {
                     placeholder="Search name, username, email..."
                     className="w-52 rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs outline-none focus:border-emerald-500"
                   />
-                  <select
-                    value={roleFilter}
-                    onChange={(e) => setRoleFilter(e.target.value)}
-                    className="w-40 rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs outline-none focus:border-emerald-500"
-                  >
-                    <option value="all">All roles</option>
-                    {selectableRoles.map((role) => (
-                      <option key={role.id} value={role.code}>
-                        {role.name}
-                      </option>
-                    ))}
-                  </select>
+                  {/* role filter handled by top tabs */}
                   <select
                     value={statusFilter}
                     onChange={(e) =>
@@ -1196,7 +1314,7 @@ export default function UsersPage() {
                               Edit
                             </button>
                             <button
-                              onClick={() => handleStatusToggle(user)}
+                              onClick={() => openStatusToggleConfirm(user)}
                               className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800"
                             >
                               {user.status === 'ACTIVE' ? 'Disable' : 'Activate'}
@@ -1216,11 +1334,10 @@ export default function UsersPage() {
               )}
             </div>
           </div>
-        </div>
 
         {editingUser && (
           <div className="fixed inset-0 z-50 flex justify-center overflow-y-auto bg-black/60 p-4">
-            <div className="my-8 w-full max-w-2xl rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <div className="my-4 w-full max-w-[96vw] rounded-3xl border border-slate-800 bg-slate-900 p-4 shadow-2xl sm:my-8 sm:p-6 md:max-w-[90vw] lg:max-w-4xl xl:max-w-5xl 2xl:max-w-6xl">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-semibold">Edit User</h2>
@@ -1411,6 +1528,49 @@ export default function UsersPage() {
                   </select>
                 </div>
 
+                <div className="md:col-span-2 rounded-2xl border border-slate-800 bg-slate-950 p-4">
+                  <h3 className="text-sm font-semibold text-slate-100">
+                    Set new password (optional)
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-400">
+                    Leave blank to keep the current password. Min 6 characters; include uppercase, lowercase and a special character.
+                  </p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-400">
+                        New password
+                      </label>
+                      <input
+                        name="password"
+                        type="password"
+                        value={editForm.password ?? ''}
+                        onChange={handleEditChange}
+                        placeholder="Enter new password"
+                        className={`w-full rounded-2xl border bg-slate-950 px-4 py-3 text-sm outline-none ${
+                          editFieldErrors.password ? 'border-red-500 focus:border-red-500' : 'border-slate-700 focus:border-emerald-500'
+                        }`}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-400">
+                        Confirm new password
+                      </label>
+                      <input
+                        type="password"
+                        value={editConfirmPassword}
+                        onChange={(e) => setEditConfirmPassword(e.target.value)}
+                        placeholder="Confirm new password"
+                        className={`w-full rounded-2xl border bg-slate-950 px-4 py-3 text-sm outline-none ${
+                          editFieldErrors.password ? 'border-red-500 focus:border-red-500' : 'border-slate-700 focus:border-emerald-500'
+                        }`}
+                      />
+                    </div>
+                  </div>
+                  {editFieldErrors.password && (
+                    <p className="mt-2 text-xs text-red-400">{editFieldErrors.password}</p>
+                  )}
+                </div>
+
                 {(editForm.roleCode === 'SYSTEM_ADMIN' ||
                   editForm.roleCode === 'AGENT' ||
                   editForm.roleCode === 'DRIVER') && (
@@ -1489,6 +1649,49 @@ export default function UsersPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {statusToggleUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+            <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+              <h2 className="text-lg font-semibold text-amber-300">
+                {statusToggleUser.status === 'ACTIVE' ? 'Disable User' : 'Activate User'}
+              </h2>
+              <p className="mt-3 text-sm text-slate-300">
+                {statusToggleUser.status === 'ACTIVE' ? (
+                  <>
+                    Disable <span className="font-semibold">{statusToggleUser.fullName}</span>? They will no longer be able to log in until an admin activates the account.
+                  </>
+                ) : (
+                  <>
+                    Activate <span className="font-semibold">{statusToggleUser.fullName}</span>? They will be able to log in again.
+                  </>
+                )}
+              </p>
+              <div className="mt-5 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setStatusToggleUser(null)}
+                  className="rounded-2xl border border-slate-700 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800"
+                  disabled={statusToggleLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmStatusToggle}
+                  disabled={statusToggleLoading}
+                  className="rounded-2xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-500 disabled:opacity-60"
+                >
+                  {statusToggleLoading
+                    ? 'Updating...'
+                    : statusToggleUser.status === 'ACTIVE'
+                      ? 'Disable'
+                      : 'Activate'}
+                </button>
+              </div>
             </div>
           </div>
         )}

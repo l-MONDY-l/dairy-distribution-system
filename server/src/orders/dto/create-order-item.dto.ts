@@ -4,6 +4,9 @@ export class CreateOrderItemDto {
   @IsString()
   productId: string;
 
+  @IsString()
+  stockBatchId: string;
+
   @IsInt()
   @Min(1)
   qty: number;

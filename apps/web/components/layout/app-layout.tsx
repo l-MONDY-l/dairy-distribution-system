@@ -17,7 +17,9 @@ export default function AppLayout({
     if (!isAuthenticated()) {
       router.replace('/login');
     }
-  }, [router]);
+    // Intentionally run once on mount; `router` from useRouter() is not stable across renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="flex min-h-screen bg-slate-950 text-white">

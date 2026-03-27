@@ -147,6 +147,7 @@ model User {
   agentProfile      AgentProfile?
   driverProfile     DriverProfile?
   shopsPlaced       Order[]        @relation("OrderPlacedBy")
+  ordersLastAction  Order[]        @relation("OrderLastActionBy")
   discountsApproved Discount[]     @relation("DiscountApprovedBy")
   activityLogs      ActivityLog[]
 
@@ -234,6 +235,7 @@ model Town {
   updatedAt  DateTime         @updatedAt
   city       City             @relation(fields: [cityId], references: [id], onDelete: Cascade)
   assignment TownAssignment?  @relation("TownAssignmentTown")
+  shops      Shop[]
 
   @@unique([cityId, name])
   @@map("towns")
@@ -251,6 +253,7 @@ model Shop {
   logoUrl          String?
   regionId         String
   cityId           String
+  townId           String?
   assignedAgentId  String?
   assignedDriverId String?
   status           ShopStatus     @default(PENDING)
@@ -258,8 +261,27 @@ model Shop {
   notifyEmail      Boolean        @default(true)
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
-  region           Region         @relation(fields: [regionId], references: [id])
-  city             City           @relation(fields: [cityId], references: [id])
+  // KYC / business
+  legalBusinessName String?
+  businessType      String?
+  registrationNo    String?
+  taxId             String?
+  certificateOfRegistrationUrl String?
+  ownerIdFrontUrl   String?
+  ownerIdBackUrl    String?
+  shopFrontPhotoUrl String?
+  addressLine1      String?
+  addressLine2      String?
+  whatsappNumber    String?
+  nationalId        String?
+  ownerPhone        String?
+  bankAccountName   String?
+  bankAccountNumber String?
+  bankName          String?
+  branch            String?
+  region            Region         @relation(fields: [regionId], references: [id])
+  city              City           @relation(fields: [cityId], references: [id])
+  town              Town?          @relation(fields: [townId], references: [id], onDelete: SetNull)
   assignedAgent    AgentProfile?  @relation(fields: [assignedAgentId], references: [id])
   assignedDriver   DriverProfile? @relation(fields: [assignedDriverId], references: [id])
   orders           Order[]
@@ -359,13 +381,45 @@ model Product {
   unitVolume       String?
   price            Decimal           @db.Decimal(12, 2)
   status           Boolean           @default(true)
+  description      String?
+  imageUrl         String?
+  agentPrice       Decimal?          @db.Decimal(12, 2)
+  specialDiscount  Boolean           @default(false)
+  quantity         Int               @default(0)
+  soldQty          Int               @default(0)
+  remainingQty     Int               @default(0)
+  expiryDate       DateTime?
+  stockCreateDate  DateTime?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   stockAllocations StockAllocation[]
   orderItems       OrderItem[]
   returnItems      ReturnItem[]
+  stockBatches     StockBatch[]
 
   @@map("products")
+}
+
+model StockBatch {
+  id              String    @id @default(cuid())
+  stockNumber     Int?      @unique
+  productId       String
+  unitType        String
+  price           Decimal   @db.Decimal(12, 2)
+  agentPrice      Decimal?  @db.Decimal(12, 2)
+  retailPrice     Decimal?  @db.Decimal(12, 2)
+  specialDiscount Boolean   @default(false)
+  quantity        Int       @default(0)
+  soldQty         Int       @default(0)
+  remainingQty    Int       @default(0)
+  stockCreateDate DateTime  @default(now())
+  expiryDate      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  product         Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderItems      OrderItem[]
+
+  @@map("stock_batches")
 }
 
 model StockAllocation {
@@ -390,6 +444,7 @@ model Order {
   orderNo        String         @unique
   shopId         String
   placedByUserId String
+  lastActionByUserId String?
   agentId        String?
   driverId       String?
   regionId       String
@@ -410,6 +465,7 @@ model Order {
   updatedAt      DateTime       @updatedAt
   shop           Shop           @relation(fields: [shopId], references: [id])
   placedByUser   User           @relation("OrderPlacedBy", fields: [placedByUserId], references: [id])
+  lastActionByUser User?        @relation("OrderLastActionBy", fields: [lastActionByUserId], references: [id])
   agent          AgentProfile?  @relation(fields: [agentId], references: [id])
   driver         DriverProfile? @relation(fields: [driverId], references: [id])
   region         Region         @relation(fields: [regionId], references: [id])
@@ -426,6 +482,7 @@ model OrderItem {
   id            String        @id @default(cuid())
   orderId       String
   productId     String
+  stockBatchId  String?
   qty           Int
   unitPrice     Decimal       @db.Decimal(12, 2)
   discountType  DiscountType?
@@ -433,6 +490,7 @@ model OrderItem {
   lineTotal     Decimal       @db.Decimal(12, 2)
   order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product       Product       @relation(fields: [productId], references: [id])
+  stockBatch    StockBatch?   @relation(fields: [stockBatchId], references: [id])
 
   @@map("order_items")
 }

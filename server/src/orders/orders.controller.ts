@@ -109,8 +109,19 @@ export class OrdersController {
     @Param('id') id: string,
     @Body('orderStatus') orderStatus?: OrderStatus,
     @Body('notes') notes?: string,
+    @Body('agentId') agentId?: string | null,
+    @Body('driverId') driverId?: string | null,
+    @Body('paymentType') paymentType?: any,
+    @Body('performedByUserId') performedByUserId?: string,
   ) {
-    return this.ordersService.update(id, { orderStatus, notes });
+    return this.ordersService.update(id, {
+      orderStatus,
+      notes,
+      agentId: agentId ?? null,
+      driverId: driverId ?? null,
+      paymentType,
+      actionUserId: performedByUserId ?? null,
+    });
   }
 
   @Delete(':id')

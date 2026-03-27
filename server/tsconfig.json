@@ -1,4 +1,8 @@
 {
+  "exclude": ["node_modules", "dist", "test"],
+  "watchOptions": {
+    "excludeDirectories": ["**/node_modules", "**/dist", "**/uploads"]
+  },
   "compilerOptions": {
     "module": "nodenext",
     "moduleResolution": "nodenext",

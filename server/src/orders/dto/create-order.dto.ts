@@ -20,6 +20,10 @@ export class CreateOrderDto {
   @IsString()
   agentId?: string;
 
+  @IsOptional()
+  @IsString()
+  driverId?: string;
+
   @IsEnum(PaymentType)
   paymentType: PaymentType;
 

@@ -149,16 +149,22 @@ export class UsersService {
       }
     }
 
+    const data: Parameters<typeof this.prisma.user.update>[0]['data'] = {
+      fullName: updateUserDto.fullName,
+      username: updateUserDto.username,
+      email: updateUserDto.email,
+      phone: updateUserDto.phone,
+      roleId,
+      status: updateUserDto.status,
+    };
+
+    if (updateUserDto.password && updateUserDto.password.trim()) {
+      data.passwordHash = await bcrypt.hash(updateUserDto.password.trim(), 10);
+    }
+
     return this.prisma.user.update({
       where: { id },
-      data: {
-        fullName: updateUserDto.fullName,
-        username: updateUserDto.username,
-        email: updateUserDto.email,
-        phone: updateUserDto.phone,
-        roleId,
-        status: updateUserDto.status,
-      },
+      data,
       include: { role: true },
     });
   }
